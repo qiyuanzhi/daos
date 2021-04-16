@@ -271,6 +271,11 @@ func NewProvider(log logging.Logger, backend Backend, sys SystemProvider) *Provi
 
 // Scan attempts to scan the system for SCM storage components.
 func (p *Provider) Scan(req storage.ScmScanRequest) (*storage.ScmScanResponse, error) {
+	// Don't perform a SCM scan.
+	return &storage.ScmScanResponse{
+		State: storage.ScmStateNoModules,
+	}, nil
+
 	modules, err := p.backend.getModules()
 	if err != nil {
 		return nil, err
