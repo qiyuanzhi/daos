@@ -2450,6 +2450,91 @@ rdb_raft_get_ae_max_size(void)
 	return value;
 }
 
+static int
+rdb_raft_dictate(struct rdb *db)
+{
+	struct rdb_lc_record	lc_record = db->d_lc_record;
+	uint64_t		term;
+	d_rank_list_t		replicas;
+	d_rank_t		self = dss_self_rank();
+	d_iov_t			keys[2];
+	d_iov_t			value;
+	uint64_t		index = lc_record.dlr_tail;
+	int			rc;
+
+	/*
+	 * Since we don't have an RDB fsck phase yet, do a basic check to avoid
+	 * arithmetic issues.
+	 */
+	if (lc_record.dlr_base >= index) {
+		D_ERROR(DF_DB": LC record corrupted: base "DF_U64" >= tail "DF_U64"\n", DP_DB(db),
+			lc_record.dlr_base, index);
+		return -DER_IO;
+	}
+
+	/* Get the term at the last index. */
+	if (index - lc_record.dlr_base - 1 > 0) {
+		struct rdb_entry header;
+
+		/* The LC has entries. Get from the last entry. */
+		d_iov_set(&value, &header, sizeof(header));
+		rc = rdb_lc_lookup(db->d_lc, index - 1, RDB_LC_ATTRS, &rdb_lc_entry_header, &value);
+		if (rc != 0) {
+			D_ERROR(DF_DB": failed to look up entry "DF_U64" header: "DF_RC"\n",
+				DP_DB(db), index - 1, DP_RC(rc));
+			return rc;
+		}
+		term = header.dre_term;
+	} else {
+		/* The LC has no entries. Get from the snapshot. */
+		term = lc_record.dlr_base_term;
+	}
+
+	/*
+	 * At a new index, reset the membership to only ourself. We also punch
+	 * the entry header and data just for consistency, for this may be a
+	 * membership change entry that, for instance, adds a node other than
+	 * ourself, which contradicts with the new membership of only ourself.
+ 	 */
+	replicas.rl_ranks = &self;
+	replicas.rl_nr = 1;
+	rc = rdb_raft_store_replicas(db->d_lc, index, &replicas);
+	if (rc != 0) {
+		D_ERROR(DF_DB": failed to reset membership: "DF_RC"\n", DP_DB(db), DP_RC(rc));
+		return rc;
+	}
+	keys[0] = rdb_lc_entry_header;
+	keys[1] = rdb_lc_entry_data;
+	rc = rdb_lc_punch(db->d_lc, index, RDB_LC_ATTRS, 2 /* n */, keys);
+	if (rc != 0) {
+		D_ERROR(DF_DB": failed to punch entry: "DF_RC"\n", DP_DB(db), DP_RC(rc));
+		return rc;
+	}
+
+	/*
+	 * Update the LC base and tail. Note that, if successful, this
+	 * "publishes" all the modifications above and effectively commits all
+	 * entries.
+	 */
+	lc_record.dlr_base = index;
+	lc_record.dlr_base_term = term;
+	lc_record.dlr_tail = index + 1;
+	d_iov_set(&value, &lc_record, sizeof(lc_record));
+	rc = rdb_mc_update(db->d_mc, RDB_MC_ATTRS, 1 /* n */, &rdb_mc_lc, &value);
+	if (rc != 0) {
+		D_ERROR(DF_DB": failed to update LC record: "DF_RC"\n", DP_DB(db), DP_RC(rc));
+		return rc;
+	}
+	D_INFO(DF_DB": updated LC reocrd: base="DF_U64"->"DF_U64" base_term="DF_U64"->"DF_U64
+	       " tail="DF_U64"->"DF_U64"\n", DP_DB(db),
+	       db->d_lc_record.dlr_base, lc_record.dlr_base,
+	       db->d_lc_record.dlr_base_term, lc_record.dlr_base_term,
+	       db->d_lc_record.dlr_tail, lc_record.dlr_tail);
+	db->d_lc_record = lc_record;
+
+	return 0;
+}
+
 int
 rdb_raft_open(struct rdb *db)
 {

@@ -622,6 +622,26 @@ rdb_stop_and_close(struct rdb *db)
 }
 
 /**
+ * Forcefully removing all other replicas from the
+ * membership. Callers must destroy all other replicas (or prevent them from
+ * starting) beforehand.
+ *
+ * This API is for catastrophic recovery scenarios, for instance, when more
+ * than a minority of replicas are lost.
+ *
+ *   1 Select the best replica to recover from.
+ *   2 Destroy all other replicas (or prevent them from starting).
+ *   3 Call rdb_dictate on the selected replica.
+ */
+int
+rdb_dictate(struct rdb_storage *storage)
+{
+	struct rdb *db = rdb_from_storage(storage);
+
+	return rdb_raft_dictate(db);
+}
+
+/**
  * Add \a replicas.
  *
  * \param[in]	db		database
