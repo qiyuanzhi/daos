@@ -2450,7 +2450,7 @@ rdb_raft_get_ae_max_size(void)
 	return value;
 }
 
-static int
+int
 rdb_raft_dictate(struct rdb *db)
 {
 	struct rdb_lc_record	lc_record = db->d_lc_record;
@@ -2495,7 +2495,7 @@ rdb_raft_dictate(struct rdb *db)
 	 * the entry header and data just for consistency, for this may be a
 	 * membership change entry that, for instance, adds a node other than
 	 * ourself, which contradicts with the new membership of only ourself.
- 	 */
+	 */
 	replicas.rl_ranks = &self;
 	replicas.rl_nr = 1;
 	rc = rdb_raft_store_replicas(db->d_lc, index, &replicas);
