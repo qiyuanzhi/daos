@@ -297,7 +297,7 @@ ec_rec_list_punch(void **state)
 	ioreq_fini(&req);
 }
 
-#define ec_parity_rotate	0
+#define ec_parity_rotate	1
 
 static void
 ec_agg_check_replica_on_parity(test_arg_t *arg, daos_obj_id_t oid, char *dkey,
