@@ -268,6 +268,8 @@ prop_to_str(uint32_t type)
 		return "DAOS_PROP_CO_CSUM_CHUNK_SIZE";
 	case DAOS_PROP_CO_CSUM_SERVER_VERIFY:
 		return "DAOS_PROP_CO_CSUM_SERVER_VERIFY";
+	case DAOS_PROP_CO_SCRUBBER_DISABLED:
+		return "DAOS_PROP_CO_SCRUBBER_DISABLED";
 	case DAOS_PROP_CO_REDUN_FAC:
 		return "DAOS_PROP_CO_REDUN_FAC";
 	case DAOS_PROP_CO_REDUN_LVL:
@@ -345,6 +347,7 @@ daos_cont_serialize_props(hid_t file_id, daos_prop_t *prop_query)
 			   type == DAOS_PROP_CO_CSUM ||
 			   type == DAOS_PROP_CO_CSUM_CHUNK_SIZE ||
 			   type == DAOS_PROP_CO_CSUM_SERVER_VERIFY ||
+			   type == DAOS_PROP_CO_SCRUBBER_DISABLED ||
 			   type == DAOS_PROP_CO_REDUN_FAC ||
 			   type == DAOS_PROP_CO_REDUN_LVL ||
 			   type == DAOS_PROP_CO_SNAPSHOT_MAX ||
@@ -862,6 +865,17 @@ deserialize_props(daos_handle_t poh, hid_t file_id, daos_prop_t **_prop, uint64_
 		entry = &prop->dpp_entries[prop_num];
 		rc = deserialize_uint(file_id, &entry->dpe_val,
 				      "DAOS_PROP_CO_CSUM_SERVER_VERIFY");
+		if (rc != 0) {
+			D_GOTO(out, rc);
+		}
+		prop_num++;
+	}
+	if (H5Aexists(file_id, "DAOS_PROP_CO_SCRUBBER_DISABLED") > 0) {
+		type = DAOS_PROP_CO_SCRUBBER_DISABLED;
+		prop->dpp_entries[prop_num].dpe_type = type;
+		entry = &prop->dpp_entries[prop_num];
+		rc = deserialize_uint(file_id, &entry->dpe_val,
+				      "DAOS_PROP_CO_SCRUBBER_DISABLED");
 		if (rc != 0) {
 			D_GOTO(out, rc);
 		}
