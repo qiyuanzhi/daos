@@ -86,5 +86,9 @@ def scons():
     # ftest
     SConscript('ftest/SConscript')
 
+    # Simple DFS test
+    libs_client += ['dfs']
+    denv.AppendUnique(LIBPATH=["$BUILD_DIR/src/client/dfs"])
+    daos_build.program(denv, 'simple_dfs', 'simple_dfs.c', LIBS=libs_client)
 if __name__ == "SCons.Script":
     scons()
