@@ -1174,40 +1174,44 @@ primary_group_initialized(void)
 }
 
 /*
- * Read the DB for map_buf, map_version, and prop. Callers are responsible for
- * freeing *map_buf and *prop.
+ * Check the layout versions and read the pool map. If the DB is empty, return
+ * positive error number DER_UNINIT. If the return value is 0, the caller is
+ * responsible for freeing *map_buf_out with D_FREE eventually.
  */
 static int
-read_db_for_stepping_up(struct pool_svc *svc, struct pool_buf **map_buf,
-			uint32_t *map_version, daos_prop_t **prop)
+pool_svc_load(struct rdb_tx *tx, uuid_t uuid, rdb_path_t *root, struct pool_buf **map_buf_out,
+	      uint32_t *map_version_out)
 {
-	struct rdb_tx	tx;
-	d_iov_t		value;
-	bool		version_exists = false;
-	uint32_t	version, global_version;
-	int		rc;
+	uuid_t			uuid_tmp;
+	d_iov_t			value;
+	bool			version_exists = false;
+	uint32_t		version;
+	uint32_t		global_version;
+	struct pool_buf	       *map_buf;
+	uint32_t		map_version;
+	int			rc;
 
-	rc = rdb_tx_begin(svc->ps_rsvc.s_db, svc->ps_rsvc.s_term, &tx);
-	if (rc != 0)
-		goto out;
-	ABT_rwlock_rdlock(svc->ps_lock);
+	/*
+	 * For the ds_notify_ras_eventf calls below, use a copy to avoid
+	 * casting the uuid pointer.
+	 */
+	uuid_copy(uuid_tmp, uuid);
 
 	/* Check the layout version. */
 	d_iov_set(&value, &version, sizeof(version));
-	rc = rdb_tx_lookup(&tx, &svc->ps_root, &ds_pool_prop_version, &value);
+	rc = rdb_tx_lookup(tx, root, &ds_pool_prop_version, &value);
 	if (rc == -DER_NONEXIST) {
 		/*
 		 * This DB may be new or incompatible. Check the existence of
 		 * the pool map to find out which is the case. (See the
 		 * references to version_exists below.)
 		 */
-		D_DEBUG(DB_MD, DF_UUID": no layout version\n",
-			DP_UUID(svc->ps_uuid));
+		D_DEBUG(DB_MD, DF_UUID": no layout version\n", DP_UUID(uuid));
 		goto check_map;
 	} else if (rc != 0) {
 		D_ERROR(DF_UUID": failed to look up layout version: "DF_RC"\n",
-			DP_UUID(svc->ps_uuid), DP_RC(rc));
-		goto out_lock;
+			DP_UUID(uuid), DP_RC(rc));
+		goto out;
 	}
 	version_exists = true;
 	if (version < DS_POOL_MD_VERSION_LOW || version > DS_POOL_MD_VERSION) {
@@ -1215,7 +1219,7 @@ read_db_for_stepping_up(struct pool_svc *svc, struct pool_buf **map_buf,
 				     RAS_SEV_ERROR, NULL /* hwid */,
 				     NULL /* rank */, NULL /* inc */,
 				     NULL /* jobid */,
-				     &svc->ps_uuid, NULL /* cont */,
+				     &uuid_tmp, NULL /* cont */,
 				     NULL /* objid */, NULL /* ctlop */,
 				     NULL /* data */,
 				     "incompatible layout version: %u not in "
@@ -1223,11 +1227,11 @@ read_db_for_stepping_up(struct pool_svc *svc, struct pool_buf **map_buf,
 				     DS_POOL_MD_VERSION_LOW,
 				     DS_POOL_MD_VERSION);
 		rc = -DER_DF_INCOMPT;
-		goto out_lock;
+		goto out;
 	}
 
 check_map:
-	rc = read_map_buf(&tx, &svc->ps_root, map_buf, map_version);
+	rc = read_map_buf(tx, root, &map_buf, &map_version);
 	if (rc != 0) {
 		if (rc == -DER_NONEXIST && !version_exists) {
 			/*
@@ -1235,14 +1239,13 @@ check_map:
 			 * exists, then the pool map must also exist;
 			 * otherwise, it is an error.
 			 */
-			D_DEBUG(DB_MD, DF_UUID": new db\n",
-				DP_UUID(svc->ps_uuid));
-			rc = +DER_UNINIT;
+			D_DEBUG(DB_MD, DF_UUID": new db\n", DP_UUID(uuid));
+			rc = DER_UNINIT; /* positive error number */
 		} else {
-			D_ERROR(DF_UUID": failed to read pool map buffer: "DF_RC
-				"\n", DP_UUID(svc->ps_uuid), DP_RC(rc));
+			D_ERROR(DF_UUID": failed to read pool map buffer: "DF_RC"\n",
+				DP_UUID(uuid), DP_RC(rc));
 		}
-		goto out_lock;
+		goto out;
 	}
 	if (!version_exists) {
 		/* This DB is not new and uses a layout that lacks a version. */
@@ -1250,20 +1253,22 @@ check_map:
 				     RAS_SEV_ERROR, NULL /* hwid */,
 				     NULL /* rank */, NULL /* inc */,
 				     NULL /* jobid */,
-				     &svc->ps_uuid, NULL /* cont */,
+				     &uuid_tmp, NULL /* cont */,
 				     NULL /* objid */, NULL /* ctlop */,
 				     NULL /* data */,
 				     "incompatible layout version");
 		rc = -DER_DF_INCOMPT;
-		goto out_lock;
+		goto out_map_buf;
 	}
 
 	d_iov_set(&value, &global_version, sizeof(global_version));
-	rc = rdb_tx_lookup(&tx, &svc->ps_root, &ds_pool_prop_global_version, &value);
-	if (rc == -DER_NONEXIST)
+	rc = rdb_tx_lookup(tx, root, &ds_pool_prop_global_version, &value);
+	if (rc == -DER_NONEXIST) {
 		global_version = 0;
-	else if (rc)
-		goto out_lock;
+		rc = 0;
+	} else if (rc != 0) {
+		goto out_map_buf;
+	}
 
 	/**
 	 * downgrading the DAOS software of an upgraded pool report
@@ -1274,21 +1279,64 @@ check_map:
 				     RAS_SEV_ERROR, NULL /* hwid */,
 				     NULL /* rank */, NULL /* inc */,
 				     NULL /* jobid */,
-				     &svc->ps_uuid, NULL /* cont */,
+				     &uuid_tmp, NULL /* cont */,
 				     NULL /* objid */, NULL /* ctlop */,
 				     NULL /* data */,
 				     "incompatible layout version: %u larger than "
 				     "%u", global_version,
 				     DS_POOL_GLOBAL_VERSION);
 		rc = -DER_DF_INCOMPT;
-		goto out_lock;
+		goto out_map_buf;
 	}
 
-	rc = pool_prop_read(&tx, svc, DAOS_PO_QUERY_PROP_ALL, prop);
+	D_ASSERTF(rc == 0, DF_RC"\n", DP_RC(rc));
+	*map_buf_out = map_buf;
+	*map_version_out = map_version;
+out_map_buf:
 	if (rc != 0)
-		D_ERROR(DF_UUID": cannot get access data for pool: "DF_RC"\n",
-			DP_UUID(svc->ps_uuid), DP_RC(rc));
+		D_FREE(map_buf);
+out:
+	return rc;
+}
 
+/*
+ * Read the DB for map_buf, map_version, and prop. If the return value is 0,
+ * the caller is responsible for freeing *map_buf_out and *prop_out eventually.
+ */
+static int
+read_db_for_stepping_up(struct pool_svc *svc, struct pool_buf **map_buf_out,
+			uint32_t *map_version_out, daos_prop_t **prop_out)
+{
+	struct rdb_tx		tx;
+	struct pool_buf	       *map_buf;
+	uint32_t		map_version;
+	daos_prop_t	       *prop;
+	int			rc;
+
+	rc = rdb_tx_begin(svc->ps_rsvc.s_db, svc->ps_rsvc.s_term, &tx);
+	if (rc != 0)
+		goto out;
+	ABT_rwlock_rdlock(svc->ps_lock);
+
+	rc = pool_svc_load(&tx, svc->ps_uuid, &svc->ps_root, &map_buf, &map_version);
+	if (rc != 0)
+		goto out_lock;
+
+	rc = pool_prop_read(&tx, svc, DAOS_PO_QUERY_PROP_ALL, &prop);
+	if (rc != 0) {
+		D_ERROR(DF_UUID": failed to read pool properties: "DF_RC"\n",
+			DP_UUID(svc->ps_uuid), DP_RC(rc));
+		daos_prop_free(prop);
+		goto out_map_buf;
+	}
+
+	D_ASSERTF(rc == 0, DF_RC"\n", DP_RC(rc));
+	*map_buf_out = map_buf;
+	*map_version_out = map_version;
+	*prop_out = prop;
+out_map_buf:
+	if (rc != 0)
+		D_FREE(map_buf);
 out_lock:
 	ABT_rwlock_unlock(svc->ps_lock);
 	rdb_tx_end(&tx);
@@ -1355,7 +1403,6 @@ pool_svc_check_node_status(struct pool_svc *svc)
 	return rc;
 }
 
-/* up */
 static int
 pool_svc_step_up_cb(struct ds_rsvc *rsvc)
 {
@@ -1598,6 +1645,289 @@ ds_pool_cont_svc_lookup_leader(uuid_t pool_uuid, struct cont_svc **svcp,
 	return 0;
 }
 
+static int
+pool_svc_glance(uuid_t uuid, char *path, struct ds_pool_svc_clue *clue_out)
+{
+	struct rdb_storage     *storage;
+	struct ds_pool_svc_clue	clue;
+	struct rdb_tx		tx;
+	rdb_path_t		root;
+	struct pool_buf	       *map_buf;
+	int			rc;
+
+	D_ASSERT(dss_get_module_info()->dmi_xs_id == 0);
+
+	rc = rdb_open(path, uuid, NULL /* cbs */, NULL /* arg */, &storage);
+	if (rc != 0) {
+		D_ERROR(DF_UUID": failed to open %s: "DF_RC"\n", DP_UUID(uuid), path, DP_RC(rc));
+		goto out;
+	}
+
+	rc = rdb_glance(storage, &clue.psc_db_clue);
+	if (rc != 0) {
+		D_ERROR(DF_UUID": failed to glance at %s: "DF_RC"\n", DP_UUID(uuid), path,
+			DP_RC(rc));
+		goto out_storage;
+	}
+
+	rc = rdb_tx_begin_local(storage, &tx);
+	if (rc != 0)
+		goto out_db_clue;
+
+	rc = rdb_path_init(&root);
+	if (rc != 0)
+		goto out_tx;
+	rc = rdb_path_push(&root, &rdb_path_root_key);
+	if (rc != 0)
+		goto out_root;
+
+	rc = pool_svc_load(&tx, uuid, &root, &map_buf, &clue.psc_map_version);
+	if (rc == DER_UNINIT) {
+		clue.psc_map_version = 0;
+		rc = 0;
+	} else if (rc != 0) {
+		goto out_root;
+	}
+
+	*clue_out = clue;
+	D_FREE(map_buf);
+out_root:
+	rdb_path_fini(&root);
+out_tx:
+	rdb_tx_end(&tx);
+out_db_clue:
+	if (rc != 0)
+		d_rank_list_free(clue.psc_db_clue.bcl_replicas);
+out_storage:
+	rdb_close(storage);
+out:
+	return rc;
+}
+
+/**
+ * Glance at the pool with \a uuid in \a dir, and report \a clue about its
+ * persistent state. Note that if an error has occurred, it is reported in \a
+ * clue->pc_rc, with \a clue->pc_uuid and \a clue->pc_dir fields also being
+ * valid.
+ *
+ * \param[in]	uuid	pool UUID
+ * \param[in]	dir	storage directory
+ * \param[out]	clue	pool clue
+ */
+void
+ds_pool_glance(uuid_t uuid, enum ds_pool_dir dir, struct ds_pool_clue *clue)
+{
+	char	       *path;
+	struct stat	st;
+	int		rc;
+
+	memset(clue, 0, sizeof(*clue));
+	uuid_copy(clue->pc_uuid, uuid);
+	clue->pc_dir = dir;
+
+	/*
+	 * Only glance at pool services in the normal directory for simplicity.
+	 */
+	if (dir != DS_POOL_DIR_NORMAL) {
+		rc = 0;
+		goto out;
+	}
+
+	path = pool_svc_rdb_path(uuid);
+	if (path == NULL) {
+		D_ERROR(DF_UUID": failed to allocate RDB path\n", DP_UUID(uuid));
+		rc = -DER_NOMEM;
+		goto out;
+	}
+
+	rc = stat(path, &st);
+	if (rc != 0) {
+		rc = errno;
+		if (rc == ENOENT) {
+			/* Not a pool service replica. */
+			rc = 0;
+		} else {
+			D_ERROR(DF_UUID": failed to stat %s: %d\n", DP_UUID(uuid), path, rc);
+			rc = daos_errno2der(rc);
+		}
+		goto out_path;
+	}
+
+	D_ALLOC(clue->pc_svc_clue, sizeof(*clue->pc_svc_clue));
+	if (clue->pc_svc_clue == NULL) {
+		D_ERROR(DF_UUID": failed to allocate service clue\n", DP_UUID(uuid));
+		rc = -DER_NOMEM;
+		goto out_path;
+	}
+
+	rc = pool_svc_glance(uuid, path, clue->pc_svc_clue);
+	if (rc != 0) {
+		D_ERROR(DF_UUID": failed to glance pool service: "DF_RC"\n", DP_UUID(uuid),
+			DP_RC(rc));
+		D_FREE(clue->pc_svc_clue);
+	}
+
+out_path:
+	D_FREE(path);
+out:
+	clue->pc_rc = rc;
+}
+
+/**
+ * Finalize \a clue that was initialized by ds_pool_glance.
+ *
+ * \param[in,out]	clue	pool clue
+ */
+void
+ds_pool_clue_fini(struct ds_pool_clue *clue)
+{
+	if (clue->pc_rc == 0 && clue->pc_svc_clue != NULL) {
+		d_rank_list_free(clue->pc_svc_clue->psc_db_clue.bcl_replicas);
+		D_FREE(clue->pc_svc_clue);
+	}
+}
+
+/* Argument for glance_at_one */
+struct glance_arg {
+	ds_pool_scan_filter_t	ga_filter;
+	void		       *ga_filter_arg;
+	enum ds_pool_dir	ga_dir;
+	struct ds_pool_clues	ga_clues;
+};
+
+static int
+glance_at_one(uuid_t uuid, void *varg)
+{
+	struct glance_arg      *arg = varg;
+	struct ds_pool_clues   *clues = &arg->ga_clues;
+
+	if (arg->ga_filter != NULL && arg->ga_filter(uuid, arg->ga_filter_arg) != 0)
+		goto out;
+
+	if (clues->pcs_cap < clues->pcs_len + 1) {
+		int			new_cap = clues->pcs_cap;
+		struct ds_pool_clue    *new_array;
+
+		/* Double the capacity. */
+		if (new_cap == 0)
+			new_cap = 1;
+		else
+			new_cap *= 2;
+		D_REALLOC_ARRAY(new_array, clues->pcs_array, clues->pcs_cap, new_cap);
+		if (new_array == NULL) {
+			D_ERROR(DF_UUID": failed to reallocate clues array\n", DP_UUID(uuid));
+			goto out;
+		}
+		clues->pcs_array = new_array;
+		clues->pcs_cap = new_cap;
+	}
+
+	ds_pool_glance(uuid, arg->ga_dir, &clues->pcs_array[clues->pcs_len]);
+	clues->pcs_len++;
+
+out:
+	/* Always return 0 to continue scanning other pools. */
+	return 0;
+}
+
+/**
+ * Finalize \a clues that was initialized by ds_pool_scan.
+ *
+ * \param[in,out]	clues	pool clues
+ */
+void
+ds_pool_clues_fini(struct ds_pool_clues *clues)
+{
+	int i;
+
+	for (i = 0; i < clues->pcs_len; i++)
+		ds_pool_clue_fini(&clues->pcs_array[i]);
+	if (clues->pcs_array != NULL)
+		D_FREE(clues->pcs_array);
+}
+
+/**
+ * Glance at every local pool for which \a filter returns 0. If \a filter is
+ * NULL, all local pools will be glanced at. Must be called on the system
+ * xstream when all local pools are stopped. If successfully initialized, \a
+ * clues must be finalized with ds_pool_clues_fini eventually.
+ *
+ * \param[in]	filter		optional filter callback
+ * \param[in]	filter_arg	optional argument for \a filter
+ * \param[out]	clues_out	pool clues
+ */
+int
+ds_pool_scan(ds_pool_scan_filter_t filter, void *filter_arg, struct ds_pool_clues *clues_out)
+{
+	struct glance_arg	arg = {0};
+	int			rc;
+
+	arg.ga_filter = filter;
+	arg.ga_filter_arg = filter_arg;
+
+	arg.ga_dir = DS_POOL_DIR_NORMAL;
+	rc = ds_mgmt_tgt_pool_iterate(glance_at_one, &arg);
+	if (rc != 0) {
+		D_ERROR("failed to glance at local pools: "DF_RC"\n", DP_RC(rc));
+		goto err_clues;
+	}
+
+	arg.ga_dir = DS_POOL_DIR_NEWBORN;
+	rc = ds_mgmt_newborn_pool_iterate(glance_at_one, &arg);
+	if (rc != 0) {
+		D_ERROR("failed to glance at local new born pools: "DF_RC"\n", DP_RC(rc));
+		goto err_clues;
+	}
+
+	arg.ga_dir = DS_POOL_DIR_ZOMBIE;
+	rc = ds_mgmt_zombie_pool_iterate(glance_at_one, &arg);
+	if (rc != 0) {
+		D_ERROR("failed to glance at local new born pools: "DF_RC"\n", DP_RC(rc));
+		goto err_clues;
+	}
+
+	*clues_out = arg.ga_clues;
+	return 0;
+
+err_clues:
+	ds_pool_clues_fini(&arg.ga_clues);
+	return rc;
+}
+
+/* For testing purposes... */
+void
+ds_pool_clues_print(struct ds_pool_clues *clues)
+{
+	struct ds_pool_svc_clue	svc_clue = {0};
+	int			i;
+
+	for (i = 0; i < clues->pcs_len; i++) {
+		struct ds_pool_clue	       *c = &clues->pcs_array[i];
+		struct ds_pool_svc_clue	       *sc = c->pc_svc_clue == NULL ? &svc_clue :
+									      c->pc_svc_clue;
+		struct rdb_clue		       *dc = &sc->psc_db_clue;
+
+		D_PRINT("pool clue %d:\n"
+			"	uuid		"DF_UUID"\n"
+			"	dir		%d\n"
+			"	rc		%d\n"
+			"	map_version	%u\n"
+			"	term		"DF_U64"\n"
+			"	vote		%d\n"
+			"	self		%u\n"
+			"	last_index	"DF_U64"\n"
+			"	last_term	"DF_U64"\n"
+			"	base_index	"DF_U64"\n"
+			"	base_term	"DF_U64"\n"
+			"	n_replicas	%u\n"
+			"	oid_next	"DF_U64"\n",
+			i, DP_UUID(c->pc_uuid), c->pc_dir, c->pc_rc, sc->psc_map_version,
+			dc->bcl_term, dc->bcl_vote, dc->bcl_self, dc->bcl_last_index,
+			dc->bcl_last_term, dc->bcl_base_index, dc->bcl_base_term,
+			dc->bcl_replicas == NULL ? 0 : dc->bcl_replicas->rl_nr, dc->bcl_oid_next);
+	}
+}
+
 /*
  * Try to start the pool. If a pool service RDB exists, start it. Continue the
  * iteration upon errors as other pools may still be able to work.
@@ -1648,6 +1978,17 @@ static void
 pool_start_all(void *arg)
 {
 	int rc;
+
+#if 0 /* testing */
+	struct ds_pool_clues clues;
+	rc = ds_pool_scan(NULL, NULL, &clues);
+	if (rc == 0) {
+		ds_pool_clues_print(&clues);
+		ds_pool_clues_fini(&clues);
+	} else {
+		D_PRINT("ds_pool_scan: "DF_RC"\n", DP_RC(rc));
+	}
+#endif
 
 	/* Scan the storage and start all pool services. */
 	rc = ds_mgmt_tgt_pool_iterate(start_one, NULL /* arg */);
