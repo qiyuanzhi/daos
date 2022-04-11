@@ -115,6 +115,27 @@ struct rdb_storage;
 
 struct rdb_cbs;
 
+/**
+ * Database info returned by rdb_glimpse
+ *
+ * Since most fields expose raft/rdb internals that are not required for normal
+ * RDB usage, we will not attempt to explain them fully here.
+ */
+struct rdb_info {
+	/* Raft info */
+	uint64_t	dif_term;	/**< term */
+	int		dif_vote;	/**< vote */
+	d_rank_t	dif_self;	/**< self rank */
+	uint64_t	dif_last_index;	/**< index of last entry */
+	uint64_t	dif_last_term;	/**< term of last entry */
+	uint64_t	dif_base_index;	/**< index of base (i.e., snapshot) */
+	uint64_t	dif_base_term;	/**< term of base (i.e., snapshot) */
+	d_rank_list_t  *dif_replicas;	/**< replicas at last index */
+
+	/* Database info */
+	uint64_t	dif_oid_next;	/**< next OID */
+};
+
 /** Database storage methods */
 int rdb_create(const char *path, const uuid_t uuid, size_t size, const d_rank_list_t *replicas,
 	       struct rdb_cbs *cbs, void *arg, struct rdb_storage **storagep);
@@ -122,6 +143,7 @@ int rdb_open(const char *path, const uuid_t uuid, struct rdb_cbs *cbs, void *arg
 	     struct rdb_storage **storagep);
 void rdb_close(struct rdb_storage *storage);
 int rdb_destroy(const char *path, const uuid_t uuid);
+int rdb_glimpse(struct rdb_storage *storage, struct rdb_info *info);
 
 /** Database (opaque) */
 struct rdb;

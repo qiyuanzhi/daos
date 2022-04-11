@@ -705,6 +705,28 @@ start(enum ds_rsvc_class_id class, d_iov_t *id, uuid_t db_uuid, bool create,
 	if (rc != 0)
 		goto err_svc;
 
+#if 1 /* testing */
+	struct rdb_info info;
+	rc = rdb_glimpse(storage, &info);
+	if (rc != 0)
+		goto err_storage;
+	D_DEBUG(DB_MD,
+		"%s: DB info:\n"
+		"	term		"DF_U64"\n"
+		"	vote		%d\n"
+		"	self		%u\n"
+		"	last_index	"DF_U64"\n"
+		"	last_term	"DF_U64"\n"
+		"	base_index	"DF_U64"\n"
+		"	base_term	"DF_U64"\n"
+		"	n_replicas	%u\n"
+		"	oid_next	"DF_U64"\n",
+		svc->s_name, info.dif_term, info.dif_vote, info.dif_self, info.dif_last_index,
+		info.dif_last_term, info.dif_base_index, info.dif_base_term,
+		info.dif_replicas->rl_nr, info.dif_oid_next);
+	d_rank_list_free(info.dif_replicas);
+#endif
+
 	rc = rdb_start(storage, &svc->s_db);
 	if (rc != 0)
 		goto err_storage;

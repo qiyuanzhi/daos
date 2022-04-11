@@ -461,6 +461,93 @@ rdb_close(struct rdb_storage *storage)
 }
 
 /**
+ * Catch a glimpse of \a storage and return \a info. Callers are responsible
+ * for freeing \a info->dif_replicas with d_rank_list_free.
+ *
+ * \param[in]	storage	database storage
+ * \parma[out]	info	database info
+ */
+int
+rdb_glimpse(struct rdb_storage *storage, struct rdb_info *info)
+{
+	struct rdb	       *db = rdb_from_storage(storage);
+	d_iov_t			value;
+	uint64_t		term;
+	int			vote;
+	uint64_t		last_index = db->d_lc_record.dlr_tail - 1;
+	uint64_t		last_term;
+	d_rank_list_t	       *replicas;
+	uint64_t		oid_next;
+	int			rc;
+
+	d_iov_set(&value, &term, sizeof(term));
+	rc = rdb_mc_lookup(db->d_mc, RDB_MC_ATTRS, &rdb_mc_term, &value);
+	if (rc == -DER_NONEXIST) {
+		term = 0;
+	} else if (rc != 0) {
+		D_ERROR(DF_DB": failed to look up term: "DF_RC"\n", DP_DB(db), DP_RC(rc));
+		goto err;
+	}
+
+	d_iov_set(&value, &vote, sizeof(vote));
+	rc = rdb_mc_lookup(db->d_mc, RDB_MC_ATTRS, &rdb_mc_vote, &value);
+	if (rc == -DER_NONEXIST) {
+		vote = -1;
+	} else if (rc != 0) {
+		D_ERROR(DF_DB": failed to look up vote: "DF_RC"\n", DP_DB(db), DP_RC(rc));
+		goto err;
+	}
+
+	if (last_index == db->d_lc_record.dlr_base) {
+		last_term = db->d_lc_record.dlr_base_term;
+	} else {
+		struct rdb_entry header;
+
+		d_iov_set(&value, &header, sizeof(header));
+		rc = rdb_lc_lookup(db->d_lc, last_index, RDB_LC_ATTRS, &rdb_lc_entry_header,
+				   &value);
+		if (rc != 0) {
+			D_ERROR(DF_DB": failed to look up entry "DF_U64" header: %d\n", DP_DB(db),
+				last_index, rc);
+			goto err;
+		}
+		last_term = header.dre_term;
+	}
+
+	rc = rdb_raft_load_replicas(db->d_lc, last_index, &replicas);
+	if (rc != 0) {
+		D_ERROR(DF_DB": failed to load replicas at "DF_U64": "DF_RC"\n", DP_DB(db),
+			last_index, DP_RC(rc));
+		goto err;
+	}
+
+	d_iov_set(&value, &oid_next, sizeof(oid_next));
+	rc = rdb_lc_lookup(db->d_lc, last_index, RDB_LC_ATTRS, &rdb_lc_oid_next, &value);
+	if (rc == -DER_NONEXIST) {
+		oid_next = RDB_LC_OID_NEXT_INIT;
+	} else if (rc != 0) {
+		D_ERROR(DF_DB": failed to look up next object number: %d\n", DP_DB(db), rc);
+		goto err_replicas;
+	}
+
+	info->dif_term = term;
+	info->dif_vote = vote;
+	info->dif_self = dss_self_rank(); /* should be stored persistently in the future */
+	info->dif_last_index = last_index;
+	info->dif_last_term = last_term;
+	info->dif_base_index = db->d_lc_record.dlr_base;
+	info->dif_base_term = db->d_lc_record.dlr_base_term;
+	info->dif_replicas = replicas;
+	info->dif_oid_next = oid_next;
+	return 0;
+
+err_replicas:
+	d_rank_list_free(replicas);
+err:
+	return rc;
+}
+
+/**
  * Start \a storage, converting \a storage into \a dbp. If this is successful,
  * the caller must stop using \a storage; otherwise, the caller remains
  * responsible for closing \a storage.
