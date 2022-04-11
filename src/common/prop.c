@@ -358,7 +358,7 @@ daos_prop_valid(daos_prop_t *prop, bool pool, bool input)
 			break;
 		case DAOS_PROP_PO_SVC_LIST:
 			break;
-		case DAOS_PROP_PO_SCRUB_SCHED:
+		case DAOS_PROP_PO_SCRUB_MODE:
 			val = prop->dpp_entries[i].dpe_val;
 			if (val >= DAOS_SCRUB_SCHED_INVALID)
 				return false;

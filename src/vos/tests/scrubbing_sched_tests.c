@@ -1,5 +1,5 @@
 /**
- * (C) Copyright 2021 Intel Corporation.
+ * (C) Copyright 2021-2022 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-2-Clause-Patent
  */
@@ -192,7 +192,7 @@ when_sched_run_wait_credits_are_consumed__should_yield(void **state)
 	const uint32_t		orig_credits = 2;
 
 	INIT_CTX_FOR_TESTS(&ctx, {
-		.tst_scrub_sched = DAOS_SCRUB_SCHED_RUN_WAIT,
+		.tst_scrub_sched = DAOS_SCRUB_SCHED_LAZY,
 		.tst_pool_last_csum_calcs = 10,
 		.tst_pool_csum_calcs = 0,
 		.tst_already_run_sec = 0,
@@ -219,8 +219,8 @@ each_schedule__credits_are_consumed_and_wrap(void **state)
 	struct scrub_ctx	ctx = {0};
 	uint32_t		i;
 	uint32_t		scheds[] = {
-		DAOS_SCRUB_SCHED_RUN_WAIT,
-		DAOS_SCRUB_SCHED_CONTINUOUS
+		DAOS_SCRUB_SCHED_LAZY,
+		DAOS_SCRUB_SCHED_TIMED
 	};
 
 	for (i = 0; i < ARRAY_SIZE(scheds); i++) {
@@ -252,7 +252,7 @@ when_sched_continuous_credits_1__sleeps_and_yield_appropriately(void **state)
 	struct scrub_ctx	ctx = {0};
 
 	INIT_CTX_FOR_TESTS(&ctx, {
-		.tst_scrub_sched = DAOS_SCRUB_SCHED_CONTINUOUS,
+		.tst_scrub_sched = DAOS_SCRUB_SCHED_TIMED,
 		.tst_scrub_cred = 1,
 		.tst_pool_last_csum_calcs = 10,
 		.tst_pool_csum_calcs = 1,
@@ -292,7 +292,7 @@ when_sched_continuous_have_run_half_freq__should_sleep(void **state)
 	struct scrub_ctx	ctx = {0};
 
 	INIT_CTX_FOR_TESTS(&ctx, {
-		.tst_scrub_sched = DAOS_SCRUB_SCHED_CONTINUOUS,
+		.tst_scrub_sched = DAOS_SCRUB_SCHED_TIMED,
 		.tst_pool_last_csum_calcs = 10,
 		.tst_pool_csum_calcs = 10,
 		.tst_already_run_sec = 5,
@@ -315,7 +315,7 @@ when_sched_continuous_past_freq__should_yield(void **state)
 	struct scrub_ctx	ctx = {0};
 
 	INIT_CTX_FOR_TESTS(&ctx, {
-		.tst_scrub_sched = DAOS_SCRUB_SCHED_CONTINUOUS,
+		.tst_scrub_sched = DAOS_SCRUB_SCHED_TIMED,
 		.tst_pool_last_csum_calcs = 10,
 		.tst_pool_csum_calcs = 10,
 		.tst_already_run_sec = 15,

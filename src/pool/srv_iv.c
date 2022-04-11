@@ -188,7 +188,7 @@ pool_iv_prop_l2g(daos_prop_t *prop, struct pool_iv_prop *iv_prop)
 		case DAOS_PROP_PO_UPGRADE_STATUS:
 			iv_prop->pip_upgrade_status = prop_entry->dpe_val;
 			break;
-		case DAOS_PROP_PO_SCRUB_SCHED:
+		case DAOS_PROP_PO_SCRUB_MODE:
 			iv_prop->pip_scrub_sched = prop_entry->dpe_val;
 			break;
 		case DAOS_PROP_PO_SCRUB_FREQ:
@@ -259,7 +259,7 @@ pool_iv_prop_g2l(struct pool_iv_prop *iv_prop, daos_prop_t *prop)
 		case DAOS_PROP_PO_SELF_HEAL:
 			prop_entry->dpe_val = iv_prop->pip_self_heal;
 			break;
-		case DAOS_PROP_PO_SCRUB_SCHED:
+		case DAOS_PROP_PO_SCRUB_MODE:
 			prop_entry->dpe_val = iv_prop->pip_scrub_sched;
 			break;
 		case DAOS_PROP_PO_SCRUB_FREQ:

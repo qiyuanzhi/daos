@@ -235,13 +235,13 @@ func PoolProperties() PoolPropertyMap {
 		},
 		"scrub": {
 			Property: PoolProperty{
-				Number:      drpc.PoolPropertyScrubSched,
-				Description: "Checksum scrubbing policy",
+				Number:      drpc.PoolPropertyScrubMode,
+				Description: "Checksum scrubbing mode",
 			},
 			values: map[string]uint64{
 				"off":        drpc.PoolScrubSchedOff,
-				"wait":       drpc.PoolScrubSchedWait,
-				"continuous": drpc.PoolScrubSchedContinuous,
+				"wait":       drpc.PoolScrubSchedLazy,
+				"continuous": drpc.PoolScrubSchedTimed,
 			},
 		},
 		"scrub-freq": {

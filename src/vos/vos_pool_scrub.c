@@ -175,7 +175,7 @@ sc_yield_sleep_while_running(struct scrub_ctx *ctx)
 	if (ctx->sc_credits_left > 0)
 		return;
 
-	if (sc_schedule(ctx) == DAOS_SCRUB_SCHED_CONTINUOUS) {
+	if (sc_schedule(ctx) == DAOS_SCRUB_SCHED_TIMED) {
 		msec_between = get_ms_between_periods(ctx->sc_pool_start_scrub,
 			now, ctx->sc_pool->sp_scrub_freq_sec,
 			ctx->sc_pool_last_csum_calcs,

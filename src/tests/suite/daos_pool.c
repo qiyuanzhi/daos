@@ -529,8 +529,8 @@ pool_properties(void **state)
 	D_STRNDUP(arg->pool_label, label, DAOS_PROP_LABEL_MAX_LEN);
 	assert_ptr_not_equal(arg->pool_label, NULL);
 
-	prop->dpp_entries[1].dpe_type = DAOS_PROP_PO_SCRUB_SCHED;
-	prop->dpp_entries[1].dpe_val = DAOS_SCRUB_SCHED_CONTINUOUS;
+	prop->dpp_entries[1].dpe_type = DAOS_PROP_PO_SCRUB_MODE;
+	prop->dpp_entries[1].dpe_val = DAOS_SCRUB_SCHED_TIMED;
 
 #if 0 /* DAOS-5456 space_rb props not supported with dmg pool create */
 	/* change daos_prop_alloc() above, specify 2 entries not 1 */
@@ -612,7 +612,7 @@ pool_properties(void **state)
 		assert_int_equal(rc, 1); /* fail the test */
 	}
 
-	entry = daos_prop_entry_get(prop_query, DAOS_PROP_PO_SCRUB_SCHED);
+	entry = daos_prop_entry_get(prop_query, DAOS_PROP_PO_SCRUB_MODE);
 	if (entry == NULL || entry->dpe_val != DAOS_SCRUB_SCHED_OFF)
 		fail_msg("scrubber sched verification failed.\n");
 

@@ -428,7 +428,7 @@ scrubbing_with_no_corruption_sv(void **state)
 	sts_ctx_update(ctx, 1, TEST_IOD_SINGLE, "dkey", "akey", 1, false);
 
 	/** act */
-	ctx->tsc_pool.sp_scrub_sched = DAOS_SCRUB_SCHED_RUN_WAIT;
+	ctx->tsc_pool.sp_scrub_sched = DAOS_SCRUB_SCHED_LAZY;
 	sts_ctx_do_scrub(ctx);
 
 	/** verify after scrub value is still good */
@@ -814,7 +814,7 @@ sts_setup(void **state)
 	*state = ctx;
 
 	/* set some defaults */
-	ctx->tsc_pool.sp_scrub_sched = DAOS_SCRUB_SCHED_RUN_WAIT;
+	ctx->tsc_pool.sp_scrub_sched = DAOS_SCRUB_SCHED_LAZY;
 	ctx->tsc_pool.sp_scrub_freq_sec = 1;
 	ctx->tsc_pool.sp_scrub_cred = 1;
 	ctx->tsc_pool.sp_scrub_thresh = 10;

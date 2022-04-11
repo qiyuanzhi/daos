@@ -104,7 +104,7 @@ enum daos_pool_props {
 	 *
 	 * default: DAOS_SCRUB_SCHED_OFF
 	 */
-	DAOS_PROP_PO_SCRUB_SCHED,
+	DAOS_PROP_PO_SCRUB_MODE,
 	/**
 	 * How frequently the schedule will run. In seconds.
 	 *
@@ -174,8 +174,8 @@ enum {
  */
 enum {
 	DAOS_SCRUB_SCHED_OFF = 0,
-	DAOS_SCRUB_SCHED_RUN_WAIT = 1,
-	DAOS_SCRUB_SCHED_CONTINUOUS = 2,
+	DAOS_SCRUB_SCHED_LAZY = 1,
+	DAOS_SCRUB_SCHED_TIMED = 2,
 	DAOS_SCRUB_SCHED_INVALID = 3,
 };
 
