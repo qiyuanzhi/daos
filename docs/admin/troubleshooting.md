@@ -434,25 +434,27 @@ Verify if you're using Infiniband for `fabric_iface`: in the server config. The 
 
 ## Diagnostic and Recovery Tools
 
-### **WARNING : Please be careful and use this tool under supervision of DAOS export.**
+!!! WARNING : Please be careful and use this tool under supervision of DAOS export.
 
 In case of PMEM device restored to healthy state, the ext4 filesystem
 created on each PMEM devices may need to verified and repaired if needed.
 
-### **Make sure that PMEM is not in use and not mounted while doing check or repair.**
+!!! Make sure that PMEM is not in use and not mounted while doing check or repair.
 
 #### Use dmg command to stop the daos engines.
+
 ```
 # dmg -o test_daos_dmg.yaml system stop
 Rank  Operation Result
 ----  --------- ------
 [0-1] stop      OK
 ```
-#### Stop the daos_server on the node where PMem checkking is required.
+#### Stop the daos server service.
 
 	#systemctl stop daos_server.service
 
-#### DAOS PMem is still mounted so unmount the daos mountpoint.
+#### Unmount the DAOS PMem mountpoint.
+
 ```
 # df
 Filesystem                    1K-blocks       Used  Available Use% Mounted on
@@ -480,7 +482,7 @@ wolf-1:/export/home/samirrav 6289369088 5927917792 361451296  95% /home/samirrav
 ### e2fsck
 
 
-#### e2fsck command execution on non-corrupted file system to check if filesystem is clean or not.
+#### e2fsck command execution on non-corrupted file system.
 
 - "-f": Force check file system even it seems clean.
 - "-n": Use the option to assume an answer of 'no' to all questions.
@@ -499,7 +501,7 @@ daos: 34/759040 files (0.0% non-contiguous), 8179728/777240064 blocks
 ```
 - Return Code: "0 - No errors"
 
-#### e2fsck command execution on corrupted file system which shows the WARNING message.
+#### e2fsck command execution on corrupted file system.
 
 - "-f": Force check file system even it seems clean.
 - "-n": Use the option to assume an answer of 'no' to all questions.
@@ -540,7 +542,7 @@ daos: 13/759040 files (0.0% non-contiguous), 334428/777240064 blocks
 ```
 - Return Code: "4 - File system errors left uncorrected"
 
-#### e2fsck command execution on corrupted file system for repair and fixing the issue without any manual intervention.
+#### e2fsck command to repair and fixing the issue.
 
 - "-f": Force check file system even it seems clean.
 - "-p": Automatically fix any filesystem problems that can be safely fixed without human intervention.
