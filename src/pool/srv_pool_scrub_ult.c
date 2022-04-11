@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2021 Intel Corporation.
+ * (C) Copyright 2021-2022 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-2-Clause-Patent
  */
@@ -219,7 +219,12 @@ drain_pool_tgt_cb(struct ds_pool *pool)
 	ABT_thread_free(&thread);
 
 	return 0;
+}
 
+static inline bool
+should_scrub(struct scrub_ctx *ctx)
+{
+	return !(ctx->sc_pool->sp_scrub_sched == DAOS_SCRUB_SCHED_LAZY && dss_xstream_is_busy());
 }
 
 /** Setup scrubbing context and start scrubbing the pool */
@@ -257,9 +262,16 @@ scrubbing_ult(void *arg)
 
 	sc_add_pool_metrics(&ctx);
 	while (!dss_ult_exiting(child->spc_scrubbing_req)) {
-		rc = vos_scrub_pool(&ctx);
-		if (rc != 0)
-			break;
+		uint64_t msecs = 5000; /* sleep for 5 seconds between full tree scrubs */
+
+		/* [todo-ryon]: make similar to cont_aggregate_runnable() */
+		if (should_scrub(&ctx)) {
+			rc = vos_scrub_pool(&ctx);
+			if (rc != 0)
+				D_ERROR("Issue with VOS Scrub: "DF_RC"\n", DP_RC(rc));
+		}
+
+		sched_req_sleep(child->spc_scrubbing_req, msecs);
 	}
 }
 
@@ -298,6 +310,7 @@ ds_start_scrubbing_ult(struct ds_pool_child *child)
 
 	return 0;
 }
+/* [todo-ryon]: ??? */
 //
 ///** Setup and create the scrubbing ult */
 //int
