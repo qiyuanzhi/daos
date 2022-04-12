@@ -1598,6 +1598,50 @@ ds_pool_cont_svc_lookup_leader(uuid_t pool_uuid, struct cont_svc **svcp,
 	return 0;
 }
 
+static int
+scan_one(uuid_t uuid, void *varg)
+{
+	char	       *path;
+	d_iov_t		id;
+	struct stat	st;
+	int		rc;
+
+	path = pool_svc_rdb_path(uuid);
+	if (path == NULL) {
+		D_ERROR(DF_UUID": failed to allocate rdb path\n", DP_UUID(uuid));
+		return -DER_NOMEM;
+	}
+
+	rc = stat(path, &st);
+	D_FREE(path);
+	if (rc != 0) {
+		if (errno != ENOENT)
+			D_ERROR(DF_UUID": failed to check rdb existence: %d\n",
+				DP_UUID(uuid), errno);
+		return daos_errno2der(errno);
+	}
+
+	/* TODO: Open this rsvc replica. */
+#if 0
+	d_iov_set(&id, uuid, sizeof(uuid_t));
+	ds_rsvc_start(DS_RSVC_CLASS_POOL, &id, uuid, false /* create */, 0 /* size */,
+		      NULL /* replicas */, NULL /* arg */);
+#endif
+	return 0;
+}
+
+int
+ds_pool_list_svcs()
+{
+	int rc;
+
+	/* Scan the storage and list all pool services. */
+	rc = ds_mgmt_tgt_pool_iterate(scan_one, NULL /* arg */);
+	if (rc != 0)
+		D_ERROR("failed to scan all pool services: "DF_RC"\n",
+			DP_RC(rc));
+}
+
 /*
  * Try to start the pool. If a pool service RDB exists, start it. Continue the
  * iteration upon errors as other pools may still be able to work.
