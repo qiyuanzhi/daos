@@ -13,11 +13,11 @@
 
 #define assert_uuid_equal(a, b) \
 	do { \
-	char str_a[DAOS_UUID_STR_SIZE]; \
-	char str_b[DAOS_UUID_STR_SIZE]; \
-	uuid_unparse(a, str_a); \
-	uuid_unparse(b, str_b); \
-	assert_string_equal(str_a, str_b); \
+		char str_a[DAOS_UUID_STR_SIZE]; \
+		char str_b[DAOS_UUID_STR_SIZE]; \
+		uuid_unparse(a, str_a); \
+		uuid_unparse(b, str_b); \
+		assert_string_equal(str_a, str_b); \
 	} while (0)
 #define assert_uuid_not_equal(a, b) \
 	do { \
