@@ -1,5 +1,5 @@
 /**
- * (C) Copyright 2015-2021 Intel Corporation.
+ * (C) Copyright 2015-2022 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-2-Clause-Patent
  */
@@ -47,6 +47,7 @@
 	ACTION(drpc,      drpc,      arg)	\
 	ACTION(security,  security,  arg)	\
 	ACTION(dtx,       dtx,       arg)	\
+	ACTION(chk,       chk,       arg)	\
 	ACTION(dfuse,     dfuse,     arg)	\
 	ACTION(il,        il,        arg)	\
 	ACTION(csum,      csum,      arg)

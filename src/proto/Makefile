@@ -14,6 +14,8 @@ C_HEADER_FILES = include/daos/drpc.pb-c.h\
 		 mgmt/smd.pb-c.h\
 		 mgmt/server.pb-c.h\
 		 mgmt/svc.pb-c.h\
+		 mgmt/check.pb-c.h\
+		 chk/check.pb-c.h\
 		 security/auth.pb-c.h\
 		 tests/drpc/drpc_test.pb-c.h
 C_SOURCE_FILES = common/drpc.pb-c.c\
@@ -25,12 +27,15 @@ C_SOURCE_FILES = common/drpc.pb-c.c\
 		 mgmt/smd.pb-c.c\
 		 mgmt/server.pb-c.c\
 		 mgmt/svc.pb-c.c\
+		 mgmt/check.pb-c.c\
+		 chk/check.pb-c.c\
 		 security/auth.pb-c.c\
 		 tests/drpc/drpc_test.pb-c.c
 GO_CONTROL_FILES = common/proto/shared/ranks.pb.go\
 		   common/proto/shared/event.pb.go\
 		   common/proto/mgmt/acl.pb.go\
 		   common/proto/mgmt/cont.pb.go\
+		   common/proto/mgmt/check.pb.go\
 		   common/proto/mgmt/mgmt.pb.go\
 		   common/proto/mgmt/pool.pb.go\
 		   common/proto/mgmt/svc.pb.go\
@@ -45,6 +50,7 @@ GO_CONTROL_FILES = common/proto/shared/ranks.pb.go\
 		   common/proto/ctl/network.pb.go\
 		   common/proto/ctl/firmware.pb.go\
 		   common/proto/ctl/ranks.pb.go\
+		   common/proto/chk/check.pb.go\
 		   common/proto/srv/srv.pb.go\
 		   drpc/drpc.pb.go\
 		   security/auth/auth.pb.go\
