@@ -648,7 +648,7 @@ server_init(int argc, char *argv[])
 		}
 		D_INFO("Client stack enabled\n");
 	} else {
-		rc = daos_hhash_init();
+		rc = daos_hhash_init(D_HASH_FT_LRU);
 		if (rc) {
 			D_ERROR("daos_hhash_init failed, rc: "DF_RC"\n",
 				DP_RC(rc));

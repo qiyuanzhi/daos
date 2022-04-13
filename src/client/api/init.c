@@ -165,7 +165,7 @@ daos_init(void)
 	}
 
 	/** set up handle hash-table */
-	rc = daos_hhash_init();
+	rc = daos_hhash_init(D_HASH_FT_LRU | D_HASH_FT_RWLOCK);
 	if (rc != 0)
 		D_GOTO(out_debug, rc);
 

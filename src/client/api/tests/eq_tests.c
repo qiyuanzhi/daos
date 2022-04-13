@@ -1,5 +1,5 @@
 /**
- * (C) Copyright 2016-2021 Intel Corporation.
+ * (C) Copyright 2016-2022 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-2-Clause-Patent
  */
@@ -1198,7 +1198,7 @@ main(int argc, char **argv)
 		return rc;
 	}
 
-	rc = daos_hhash_init();
+	rc = daos_hhash_init(D_HASH_FT_LRU | D_HASH_FT_RWLOCK);
 	if (rc != 0) {
 		print_error("Failed daos_hhash_init: %d\n", rc);
 		goto out_debug;
