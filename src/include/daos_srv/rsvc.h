@@ -99,7 +99,8 @@ struct ds_rsvc {
 	enum ds_rsvc_class_id	s_class;
 	d_iov_t			s_id;		/**< for lookups */
 	char		       *s_name;		/**< for printing */
-	struct rdb	       *s_db;		/**< DB handle */
+	struct rdb_storage     *s_storage;	/**< DB storage */
+	struct rdb	       *s_db;		/**< DB */
 	char		       *s_db_path;
 	uuid_t			s_db_uuid;
 	int			s_ref;
@@ -120,6 +121,8 @@ int ds_rsvc_start_nodb(enum ds_rsvc_class_id class, d_iov_t *id,
 		       uuid_t db_uuid);
 int ds_rsvc_stop_nodb(enum ds_rsvc_class_id class, d_iov_t *id);
 
+int ds_rsvc_open(enum ds_rsvc_class_id class, d_iov_t *id, uuid_t db_uuid);
+void ds_rsvc_close(enum ds_rsvc_class_id class, d_iov_t *id, uuid_t db_uuid);
 int ds_rsvc_start(enum ds_rsvc_class_id class, d_iov_t *id, uuid_t db_uuid,
 		  bool create, size_t size, d_rank_list_t *replicas, void *arg);
 int ds_rsvc_stop(enum ds_rsvc_class_id class, d_iov_t *id, bool destroy);
