@@ -27,7 +27,7 @@
 
 Name:          daos
 Version:       2.3.100
-Release:       3%{?relval}%{?dist}
+Release:       4%{?relval}%{?dist}
 Summary:       DAOS Storage Engine
 
 License:       BSD-2-Clause-Patent
@@ -79,7 +79,8 @@ BuildRequires: fuse3-devel >= 3
 BuildRequires: fuse3-devel >= 3.4.2
 %endif
 %if (0%{?suse_version} >= 1500)
-BuildRequires: go-race
+BuildRequires: go >= 1.14
+BuildRequires: go-race >= 1.14
 BuildRequires: libprotobuf-c-devel
 BuildRequires: liblz4-devel
 %else
@@ -101,8 +102,8 @@ BuildRequires: libyaml-devel
 BuildRequires: libcmocka-devel
 BuildRequires: valgrind-devel
 BuildRequires: systemd
-BuildRequires: go >= 1.14
 %if (0%{?rhel} >= 7)
+BuildRequires: golang >= 1.14
 BuildRequires: numactl-devel
 BuildRequires: CUnit-devel
 # needed to retrieve PMM region info through control-plane
@@ -554,6 +555,9 @@ getent passwd daos_agent >/dev/null || useradd -s /sbin/nologin -r -g daos_agent
 # No files in a shim package
 
 %changelog
+* Fri Apr 15 2022 Michael MacDonald <mjmac.macdonald@intel.com> 2.3.100-4
+- Update per-distro build requirements for go
+
 * Tue Apr 12 2022 Li Wei <wei.g.li@intel.com> 2.3.100-3
 - Update raft to 0.9.1-1401.gc18bcb8 to fix uninitialized node IDs
 
