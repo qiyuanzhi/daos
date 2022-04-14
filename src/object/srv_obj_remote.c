@@ -310,10 +310,16 @@ ds_obj_cpd_clone_reqs(struct daos_shard_tgt *tgt, struct daos_cpd_disp_ent *dcde
 	struct daos_cpd_disp_ent	*dcde = NULL;
 	struct daos_cpd_sub_req		*dcsr = NULL;
 	int				 count;
+	int				 prev = -1;
 	int				 rc = 0;
+	int				 j = 0;
 	int				 i;
 
 	count = dcde_parent->dcde_read_cnt + dcde_parent->dcde_write_cnt;
+	/*
+	 * "dcde->dcde_reqs[m].dcri_req_idx" may be equal to "dcde->dcde_reqs[n].dcri_req_idx".
+	 * So there will be at most 'count' sub requests for the given target.
+	 */
 	D_ALLOC_ARRAY(dcsr, count);
 	if (dcsr == NULL)
 		D_GOTO(out, rc = -DER_NOMEM);
@@ -335,7 +341,16 @@ ds_obj_cpd_clone_reqs(struct daos_shard_tgt *tgt, struct daos_cpd_disp_ent *dcde
 		idx = dcri_parent->dcri_req_idx;
 		D_ASSERT(idx < total);
 
-		memcpy(&dcsr[i], &dcsr_parent[idx], sizeof(dcsr[i]));
+		dcde->dcde_reqs[i].dcri_shard_off = dcri_parent->dcri_shard_off;
+		dcde->dcde_reqs[i].dcri_shard_id = dcri_parent->dcri_shard_id;
+		dcde->dcde_reqs[i].dcri_req_idx = j;
+		dcde->dcde_reqs[i].dcri_padding = dcri_parent->dcri_padding;
+
+		if (idx == prev)
+			continue;
+
+		prev = idx;
+		memcpy(&dcsr[j], &dcsr_parent[idx], sizeof(dcsr[j]));
 
 		if (dcsr_parent[idx].dcsr_opc == DCSO_UPDATE) {
 			struct daos_cpd_update	*dcu_parent;
@@ -343,21 +358,21 @@ ds_obj_cpd_clone_reqs(struct daos_shard_tgt *tgt, struct daos_cpd_disp_ent *dcde
 			struct obj_ec_split_req	*split;
 
 			dcu_parent = &dcsr_parent[idx].dcsr_update;
-			dcu = &dcsr[i].dcsr_update;
+			dcu = &dcsr[j].dcsr_update;
 
 			/* For non-leader, does not need split EC sub-req. */
 			dcu->dcu_ec_tgts = NULL;
 			dcu->dcu_ec_split_req = NULL;
-			dcsr[i].dcsr_ec_tgt_nr = 0;
+			dcsr[j].dcsr_ec_tgt_nr = 0;
 
 			split = dcu_parent->dcu_ec_split_req;
 			if (split != NULL) {
 				struct obj_tgt_oiod	*oiod;
 
 				oiod = obj_ec_tgt_oiod_get(split->osr_tgt_oiods,
-						dcsr_parent[idx].dcsr_ec_tgt_nr,
-						dcri_parent->dcri_shard_off -
-						dcu_parent->dcu_start_shard);
+							   dcsr_parent[idx].dcsr_ec_tgt_nr,
+							   dcri_parent->dcri_shard_off -
+							   dcu_parent->dcu_start_shard);
 				D_ASSERT(oiod != NULL);
 
 				dcu->dcu_iod_array.oia_oiods = oiod->oto_oiods;
@@ -367,10 +382,7 @@ ds_obj_cpd_clone_reqs(struct daos_shard_tgt *tgt, struct daos_cpd_disp_ent *dcde
 			}
 		}
 
-		dcde->dcde_reqs[i].dcri_shard_off = dcri_parent->dcri_shard_off;
-		dcde->dcde_reqs[i].dcri_shard_id = dcri_parent->dcri_shard_id;
-		dcde->dcde_reqs[i].dcri_req_idx = i;
-		dcde->dcde_reqs[i].dcri_padding = dcri_parent->dcri_padding;
+		j++;
 	}
 
 out:
@@ -382,7 +394,7 @@ out:
 		*p_dcsr = dcsr;
 	}
 
-	return rc;
+	return rc < 0 ? rc : j;
 }
 
 /* Dispatch CPD RPC and handle sub requests remotely */
@@ -408,8 +420,6 @@ ds_obj_cpd_dispatch(struct dtx_leader_handle *dlh, void *arg, int idx,
 	struct daos_cpd_sg		*head_dcs = NULL;
 	struct daos_cpd_sg		*dcsr_dcs = NULL;
 	struct daos_cpd_sg		*dcde_dcs = NULL;
-	int				 total;
-	int				 count;
 	int				 rc = 0;
 
 	D_ASSERT(idx < dlh->dlh_sub_cnt);
@@ -462,8 +472,7 @@ ds_obj_cpd_dispatch(struct dtx_leader_handle *dlh, void *arg, int idx,
 	uuid_copy(oci->oci_co_hdl, oci_parent->oci_co_hdl);
 	uuid_copy(oci->oci_co_uuid, oci_parent->oci_co_uuid);
 	oci->oci_map_ver = oci_parent->oci_map_ver;
-	oci->oci_flags = (oci_parent->oci_flags | exec_arg->flags) &
-			~(ORF_HAS_EC_SPLIT | ORF_CPD_LEADER);
+	oci->oci_flags = (oci_parent->oci_flags | exec_arg->flags) & ~ORF_CPD_LEADER;
 
 	oci->oci_disp_tgts.ca_arrays = NULL;
 	oci->oci_disp_tgts.ca_count = 0;
@@ -476,29 +485,22 @@ ds_obj_cpd_dispatch(struct dtx_leader_handle *dlh, void *arg, int idx,
 	oci->oci_sub_heads.ca_count = 1;
 
 	dcsr_parent = ds_obj_cpd_get_dcsr(dca->dca_rpc, dca->dca_idx);
-	total = ds_obj_cpd_get_dcsr_cnt(dca->dca_rpc, dca->dca_idx);
-
 	/* IDX[0] is for leader. */
 	dcde_parent = ds_obj_cpd_get_dcde(dca->dca_rpc, dca->dca_idx, idx + 1);
 	if (dcde_parent == NULL)
 		D_GOTO(out, rc = -DER_INVAL);
 
-	count = dcde_parent->dcde_read_cnt + dcde_parent->dcde_write_cnt;
-	if (count < total || (exec_arg->flags & ORF_HAS_EC_SPLIT)) {
-		rc = ds_obj_cpd_clone_reqs(shard_tgt, dcde_parent,
-					   dcsr_parent, total, &dcde, &dcsr);
-		if (rc != 0)
-			D_GOTO(out, rc);
+	rc = ds_obj_cpd_clone_reqs(shard_tgt, dcde_parent, dcsr_parent,
+				   ds_obj_cpd_get_dcsr_cnt(dca->dca_rpc, dca->dca_idx),
+				   &dcde, &dcsr);
+	if (rc < 0)
+		D_GOTO(out, rc);
 
-		remote_arg->cpd_reqs = dcsr;
-		remote_arg->cpd_desc = dcde;
-	} else {
-		dcsr = dcsr_parent;
-		dcde = dcde_parent;
-	}
+	remote_arg->cpd_reqs = dcsr;
+	remote_arg->cpd_desc = dcde;
 
 	dcsr_dcs->dcs_type = DCST_REQ_SRV;
-	dcsr_dcs->dcs_nr = count;
+	dcsr_dcs->dcs_nr = rc;
 	dcsr_dcs->dcs_buf = dcsr;
 	oci->oci_sub_reqs.ca_arrays = dcsr_dcs;
 	oci->oci_sub_reqs.ca_count = 1;
@@ -535,11 +537,8 @@ out:
 		D_FREE(remote_arg);
 	}
 
-	if (dcsr != dcsr_parent)
-		D_FREE(dcsr);
-	if (dcde != dcde_parent)
-		D_FREE(dcde);
-
+	D_FREE(dcsr);
+	D_FREE(dcde);
 	D_FREE(head_dcs);
 	D_FREE(dcsr_dcs);
 	D_FREE(dcde_dcs);
