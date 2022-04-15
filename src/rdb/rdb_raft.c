@@ -2450,6 +2450,28 @@ rdb_raft_get_ae_max_size(void)
 	return value;
 }
 
+/* For the rdb_raft_dictate case. */
+static int
+rdb_raft_discard_slc(struct rdb *db)
+{
+	struct rdb_lc_record	slc_record;
+	d_iov_t			value;
+	int			rc;
+
+	d_iov_set(&value, &slc_record, sizeof(slc_record));
+	rc = rdb_mc_lookup(db->d_mc, RDB_MC_ATTRS, &rdb_mc_slc, &value);
+	if (rc == -DER_NONEXIST) {
+		D_DEBUG(DB_MD, DF_DB": no SLC record\n", DP_DB(db));
+		return 0;
+	} else if (rc != 0) {
+		D_ERROR(DF_DB": failed to look up SLC: "DF_RC"\n", DP_DB(db), DP_RC(rc));
+		return rc;
+	}
+
+	return rdb_raft_destroy_lc(db->d_pool, db->d_mc, &rdb_mc_slc, slc_record.dlr_uuid,
+				   NULL /* record */);
+}
+
 int
 rdb_raft_dictate(struct rdb *db)
 {
@@ -2461,6 +2483,14 @@ rdb_raft_dictate(struct rdb *db)
 	d_iov_t			value;
 	uint64_t		index = lc_record.dlr_tail;
 	int			rc;
+
+	/*
+	 * If an SLC exists, discard it, since it must be either stale or
+	 * incomplete. See rdb_raft_cb_recv_installsnapshot.
+	 */
+	rc = rdb_raft_discard_slc(db);
+	if (rc != 0)
+		return rc;
 
 	/*
 	 * Since we don't have an RDB fsck phase yet, do a basic check to avoid
