@@ -39,13 +39,13 @@ mdtest:
     many_files:                # total 15K files for dcp
       num_of_files_dirs: 500
       mdtest_flags:
-        - "-F -C"
-        - "-F -E"
+        - "-F -C -G 27"
+        - "-F -E -X -G 27"
     many_files_and_dirs:       # total 15K files and 15K dirs for dcp
       num_of_files_dirs: 500
       mdtest_flags:
-        - "-C"
-        - "-E"
+        - "-C -G 27"
+        - "-E -X -G 27"
       depth: 4
       branching_factor: 4
   bytes: 4096

@@ -38,8 +38,8 @@ mdtest:
   manager: "MPICH"
   num_of_files_dirs: 1667  # total 50K files and 50K dirs
   mdtest_flags:
-    - "-C"
-    - "-E -X"
+    - "-C -G 27"
+    - "-E -X -G 27"
   depth: 2
   branching_factor: 2
   bytes: 4096
