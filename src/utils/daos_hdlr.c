@@ -2362,6 +2362,12 @@ cont_clone_recx_array(struct cmd_args_s *ap,
 	char			*buf = NULL;
 	char			*prev_buf = NULL;
 
+	bool THIS_ONE = (strcmp(dkey->iov_buf, "file.mdtest.0.242") == 0) && (strcmp(akey->iov_buf, "DFS_INODE") == 0);
+	if (THIS_ONE) {
+		fprintf(ap->outstream, ">>> dkey = %s\n", (char *)dkey->iov_buf);
+		fprintf(ap->outstream, ">>> akey = %s\n", (char *)akey->iov_buf);
+	}
+
 	while (!daos_anchor_is_eof(&recx_anchor)) {
 		/* list all recx for this dkey/akey */
 		number = 5;
@@ -2407,6 +2413,11 @@ cont_clone_recx_array(struct cmd_args_s *ap,
 		if (rc != 0) {
 			DH_PERROR_DER(ap, rc, "Failed to fetch source recx");
 			D_GOTO(out, rc);
+		}
+
+		if (THIS_ONE) {
+			daos_obj_id_t *oid = (daos_obj_id_t*) (buf + sizeof(mode_t));
+			fprintf(ap->outstream, ">>> OID = "DF_OID"\n", DP_OID(*oid));
 		}
 
 		/* Sanity check that fetch returns as expected */
