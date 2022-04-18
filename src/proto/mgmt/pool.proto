@@ -211,6 +211,8 @@ message PoolQueryResp {
 	uint32 leader = 11; // current raft leader
 	string enabled_ranks = 12; // Optional set of ranks enabled
 	string disabled_ranks = 13; // Optional set of ranks disabled
+	uint32 current_global_version = 14; // current pool global version
+	uint32 latest_global_version = 15; // latest pool global version
 }
 
 message PoolProperty {
