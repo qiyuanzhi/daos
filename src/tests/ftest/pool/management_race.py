@@ -34,17 +34,13 @@ class PoolManagementRace(TestWithServers):
 
         wait_time = self.params.get("wait_time", '/run/boundary_test/*')
         max_query_time = self.params.get("max_query_time", '/run/boundary_test/*')
-        pool_label_prefix = self.params.get("pool_label_prefix", '/run/boundary_test/*')
-        label = pool_label_prefix + str(pool_num)
         for test_num in range(test_loop):
+            label = self.pool[pool_num].label
             if del_recreate:
                 self.pool[pool_num].destroy()
                 self.log.info(
                     "--(%d.2.%d.%d)Pool %s deleted.\n", thread_num, pool_num, test_num, label)
-                new_pool = self.get_pool(create=False)
-                new_pool.label.update(label)
-                new_pool.create()
-                self.pool[pool_num] = new_pool
+                self.pool[pool_num].create()
                 self.log.info("--(%d.3.%d.%d)Pool %s recreated.\n",
                               thread_num, pool_num, test_num, label)
                 # pool stays with a random time before destroy
@@ -96,13 +92,9 @@ class PoolManagementRace(TestWithServers):
         num_pools = self.params.get("num_pools", '/run/boundary_test/*')
         test_loop = self.params.get("test_loop", '/run/boundary_test/*')
         num_query_threads = self.params.get("num_query_threads", '/run/boundary_test/*')
-        pool_label_prefix = self.params.get("pool_label_prefix", '/run/boundary_test/*')
         self.pool = []
         for pool_number in range(num_pools):
-            label = pool_label_prefix + str(pool_number)
-            self.pool.append(self.get_pool(create=False))
-            self.pool[-1].label.update(label)
-            self.pool[-1].create()
+            self.pool.append(self.get_pool())
             self.log.info("==(1.%d) pool created, %d.", pool_number, self.pool[-1])
 
         # Randomly select a pool for delete, recreate and query
