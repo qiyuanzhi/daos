@@ -7,7 +7,7 @@
  * and at https://img.shields.io/badge/License-BSD--2--Clause--Patent-blue.svg.
  * No part of the DAOS Project, including this file, may be copied, modified,
  * propagated, or distributed except according to the terms contained in the
- * LICENSE file.
+ * LICENSE file/.
  */
 
 // To use a test branch (i.e. PR) until it lands to master
@@ -180,7 +180,7 @@ pipeline {
         string(name: 'CI_STORAGE_PREP_LABEL',
                defaultValue: '',
                description: 'Label for cluster to do a DAOS Storage Preparation')
-        string(name: 'CI_PROVISINING_POOL',
+        string(name: 'CI_PROVISIONING_POOL',
                defaultValue: '',
                description: 'The pool of images to provision test nodes from')
     }
