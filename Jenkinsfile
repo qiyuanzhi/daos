@@ -167,7 +167,7 @@ pipeline {
                description: 'Label to use for 9 VM functional tests')
         string(name: 'CI_NLT_1_LABEL',
                defaultValue: 'ci_nlt_1',
-               description: "Label to use for NLT tests")
+               description: 'Label to use for NLT tests')
         string(name: 'CI_NVME_3_LABEL',
                defaultValue: 'ci_nvme3',
                description: 'Label to use for 3 node NVMe tests')
@@ -183,6 +183,10 @@ pipeline {
         string(name: 'CI_PROVISIONING_POOL',
                defaultValue: '',
                description: 'The pool of images to provision test nodes from')
+        string(name: 'CI_PR_REPOS',
+               defaultValue: '',
+               description: 'Repos to add to the build and test ndoes')
+        // TODO: add parameter support for per-distro CI_PR_REPOS
     }
 
     stages {
@@ -570,7 +574,7 @@ pipeline {
                                  inst_rpms: unitPackages()
                     }
                     post {
-                      always {
+                        always {
                             unitTestPost artifacts: ['unit_test_logs/*']
                         }
                     }
@@ -590,7 +594,7 @@ pipeline {
                                  inst_rpms: unitPackages()
                     }
                     post {
-                      always {
+                        always {
                             unitTestPost artifacts: ['nlt_logs/*'],
                                          testResults: 'nlt-junit.xml',
                                          always_script: 'ci/unit/test_nlt_post.sh',
@@ -800,7 +804,7 @@ pipeline {
                     steps {
                         testRpm inst_repos: daosRepos(),
                                 daos_pkg_version: daosPackagesVersion(next_version)
-                   }
+                    }
                 } // stage('Test CentOS 7 RPMs')
                 stage('Scan CentOS 7 RPMs') {
                     when {
@@ -956,7 +960,7 @@ pipeline {
                         functionalTest inst_repos: daosRepos(),
                                        inst_rpms: functionalPackages(1, next_version),
                                        test_function: 'runTestFunctionalV2'
-                   }
+                    }
                     post {
                         always {
                             functionalTestPostV2()
