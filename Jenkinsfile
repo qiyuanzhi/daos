@@ -180,6 +180,9 @@ pipeline {
         string(name: 'CI_STORAGE_PREP_LABEL',
                defaultValue: '',
                description: 'Label for cluster to do a DAOS Storage Preparation')
+        string(name: 'CI_PROVISINING_POOL',
+               defaultValue: '',
+               description: 'The pool of images to provision test nodes from')
     }
 
     stages {
