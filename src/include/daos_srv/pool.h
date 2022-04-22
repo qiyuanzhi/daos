@@ -326,6 +326,7 @@ enum ds_pool_dir {
  */
 struct ds_pool_clue {
 	uuid_t				pc_uuid;
+	d_rank_t			pc_rank;
 	enum ds_pool_dir		pc_dir;
 	int				pc_rc;
 	struct ds_pool_svc_clue	       *pc_svc_clue;

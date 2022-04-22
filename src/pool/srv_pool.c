@@ -1723,6 +1723,7 @@ ds_pool_glance(uuid_t uuid, enum ds_pool_dir dir, struct ds_pool_clue *clue)
 
 	memset(clue, 0, sizeof(*clue));
 	uuid_copy(clue->pc_uuid, uuid);
+	clue->pc_rank = dss_self_rank();
 	clue->pc_dir = dir;
 
 	/*
@@ -1909,6 +1910,7 @@ ds_pool_clues_print(struct ds_pool_clues *clues)
 
 		D_PRINT("pool clue %d:\n"
 			"	uuid		"DF_UUID"\n"
+			"	rank		%u\n"
 			"	dir		%d\n"
 			"	rc		%d\n"
 			"	map_version	%u\n"
@@ -1921,10 +1923,11 @@ ds_pool_clues_print(struct ds_pool_clues *clues)
 			"	base_term	"DF_U64"\n"
 			"	n_replicas	%u\n"
 			"	oid_next	"DF_U64"\n",
-			i, DP_UUID(c->pc_uuid), c->pc_dir, c->pc_rc, sc->psc_map_version,
-			dc->bcl_term, dc->bcl_vote, dc->bcl_self, dc->bcl_last_index,
-			dc->bcl_last_term, dc->bcl_base_index, dc->bcl_base_term,
-			dc->bcl_replicas == NULL ? 0 : dc->bcl_replicas->rl_nr, dc->bcl_oid_next);
+			i, DP_UUID(c->pc_uuid), c->pc_rank, c->pc_dir, c->pc_rc,
+			sc->psc_map_version, dc->bcl_term, dc->bcl_vote, dc->bcl_self,
+			dc->bcl_last_index, dc->bcl_last_term, dc->bcl_base_index,
+			dc->bcl_base_term, dc->bcl_replicas == NULL ? 0 : dc->bcl_replicas->rl_nr,
+			dc->bcl_oid_next);
 	}
 }
 
