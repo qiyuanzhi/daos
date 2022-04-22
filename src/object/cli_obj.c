@@ -678,7 +678,7 @@ obj_ec_leader_select(struct dc_object *obj, int grp_idx, uint8_t *bit_map)
 	}
 
 found:
-	D_DEBUG(DB_TRACE, DF_OID" choose shard %d as leader for group%d.\n",
+	D_DEBUG(DB_TRACE, DF_OID" choose shard %d as leader for group %d.\n",
 		DP_OID(obj->cob_md.omd_id), shard, grp_idx);
 
 	return shard;
