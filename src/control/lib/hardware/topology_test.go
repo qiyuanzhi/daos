@@ -17,17 +17,54 @@ import (
 	"github.com/daos-stack/daos/src/control/common"
 )
 
+func TestHardware_VirtualDevice(t *testing.T) {
+	mockPCIDev := mockPCIDevice("testdev")
+
+	for name, tc := range map[string]struct {
+		dev       *VirtualDevice
+		expName   string
+		expType   DeviceType
+		expPCIDev *PCIDevice
+	}{
+		"nil": {},
+		"no PCI dev": {
+			dev: &VirtualDevice{
+				Name: "testname",
+				Type: DeviceTypeNetInterface,
+			},
+			expName: "testname",
+			expType: DeviceTypeNetInterface,
+		},
+		"PCI dev": {
+			dev: &VirtualDevice{
+				Name:          "testname",
+				Type:          DeviceTypeNetInterface,
+				BackingDevice: mockPCIDev,
+			},
+			expName:   "testname",
+			expType:   DeviceTypeNetInterface,
+			expPCIDev: mockPCIDev,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			common.AssertEqual(t, tc.expName, tc.dev.DeviceName(), "")
+			common.AssertEqual(t, tc.expType, tc.dev.DeviceType(), "")
+			common.AssertEqual(t, tc.expPCIDev, tc.dev.PCIDevice(), "")
+		})
+	}
+}
+
 func TestHardware_Topology_AllDevices(t *testing.T) {
 	for name, tc := range map[string]struct {
 		topo      *Topology
-		expResult map[string]*PCIDevice
+		expResult map[string]Device
 	}{
 		"nil": {
-			expResult: make(map[string]*PCIDevice),
+			expResult: make(map[string]Device),
 		},
 		"no NUMA nodes": {
 			topo:      &Topology{},
-			expResult: make(map[string]*PCIDevice),
+			expResult: make(map[string]Device),
 		},
 		"no PCI addrs": {
 			topo: &Topology{
@@ -35,7 +72,7 @@ func TestHardware_Topology_AllDevices(t *testing.T) {
 					0: MockNUMANode(0, 8),
 				},
 			},
-			expResult: make(map[string]*PCIDevice),
+			expResult: make(map[string]Device),
 		},
 		"single device": {
 			topo: &Topology{
@@ -47,7 +84,7 @@ func TestHardware_Topology_AllDevices(t *testing.T) {
 					),
 				},
 			},
-			expResult: map[string]*PCIDevice{
+			expResult: map[string]Device{
 				"test00": mockPCIDevice("test").withType(DeviceTypeNetInterface),
 			},
 		},
@@ -71,7 +108,7 @@ func TestHardware_Topology_AllDevices(t *testing.T) {
 					),
 				},
 			},
-			expResult: map[string]*PCIDevice{
+			expResult: map[string]Device{
 				"test001": mockPCIDevice("test0", 1, 1, 0).withType(DeviceTypeNetInterface),
 				"test101": mockPCIDevice("test1", 1, 1, 0).withType(DeviceTypeOFIDomain),
 				"test201": mockPCIDevice("test2", 1, 2, 1).withType(DeviceTypeNetInterface),
@@ -79,6 +116,38 @@ func TestHardware_Topology_AllDevices(t *testing.T) {
 				"test402": mockPCIDevice("test4", 2, 1, 1).withType(DeviceTypeNetInterface),
 				"test502": mockPCIDevice("test5", 2, 1, 1).withType(DeviceTypeOFIDomain),
 				"test602": mockPCIDevice("test6", 2, 2, 1).withType(DeviceTypeNetInterface),
+			},
+		},
+		"virtual devices": {
+			topo: &Topology{
+				NUMANodes: map[uint]*NUMANode{
+					0: MockNUMANode(0, 8).WithDevices(
+						[]*PCIDevice{
+							mockPCIDevice("test").withType(DeviceTypeNetInterface),
+						},
+					),
+				},
+				VirtualDevices: []*VirtualDevice{
+					{
+						Name: "virt0",
+						Type: DeviceTypeNetInterface,
+					},
+					{
+						Name: "virt1",
+						Type: DeviceTypeNetInterface,
+					},
+				},
+			},
+			expResult: map[string]Device{
+				"test00": mockPCIDevice("test").withType(DeviceTypeNetInterface),
+				"virt0": &VirtualDevice{
+					Name: "virt0",
+					Type: DeviceTypeNetInterface,
+				},
+				"virt1": &VirtualDevice{
+					Name: "virt1",
+					Type: DeviceTypeNetInterface,
+				},
 			},
 		},
 	} {

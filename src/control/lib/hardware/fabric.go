@@ -538,18 +538,20 @@ func (o *NetworkDeviceBuilder) BuildPart(ctx context.Context, fis *FabricInterfa
 			continue
 		}
 
-		if dev.Type == DeviceTypeNetInterface {
+		if dev.DeviceType() == DeviceTypeNetInterface {
 			fi.NetInterface = name
 			fis.Update(fi)
 			continue
 		}
 
-		siblings := o.topo.NUMANodes[dev.NUMANode.ID].PCIDevices[dev.PCIAddr]
-		for _, sib := range siblings {
-			if sib.Type == DeviceTypeNetInterface {
-				fi.NetInterface = sib.Name
-				fis.Update(fi)
-				break
+		if pciDev := dev.PCIDevice(); pciDev != nil {
+			siblings := o.topo.NUMANodes[pciDev.NUMANode.ID].PCIDevices[pciDev.PCIAddr]
+			for _, sib := range siblings {
+				if sib.Type == DeviceTypeNetInterface {
+					fi.NetInterface = sib.Name
+					fis.Update(fi)
+					break
+				}
 			}
 		}
 
@@ -574,7 +576,7 @@ type NUMAAffinityBuilder struct {
 	topo *Topology
 }
 
-// BuildPart updates existing FabricInterface structures in the setto include a
+// BuildPart updates existing FabricInterface structures in the set to include a
 // NUMA node affinity, if available.
 func (n *NUMAAffinityBuilder) BuildPart(ctx context.Context, fis *FabricInterfaceSet) error {
 	if n == nil {
@@ -615,7 +617,10 @@ func (n *NUMAAffinityBuilder) BuildPart(ctx context.Context, fis *FabricInterfac
 			continue
 		}
 
-		fi.NUMANode = dev.NUMANode.ID
+		pciDev := dev.PCIDevice()
+		if pciDev != nil {
+			fi.NUMANode = pciDev.NUMANode.ID
+		}
 	}
 	return nil
 }

@@ -31,16 +31,59 @@ type (
 	// NodeMap maps a node ID to a node.
 	NodeMap map[uint]*NUMANode
 
-	// Topology is a hierarchy of hardware devices grouped under NUMA nodes.
-	Topology struct {
-		// NUMANodes is the set of NUMA nodes mapped by their ID.
-		NUMANodes NodeMap `json:"numa_nodes"`
+	// Device is the interface for a system device.
+	Device interface {
+		DeviceName() string
+		DeviceType() DeviceType
+		PCIDevice() *PCIDevice
+	}
+
+	// VirtualDevice represents a system device that is created virtually in software, and may
+	// have a real PCI hardware device associated with it.
+	VirtualDevice struct {
+		Name          string
+		Type          DeviceType
+		BackingDevice *PCIDevice
 	}
 )
 
+// DeviceName is the name of the virtual device.
+func (d *VirtualDevice) DeviceName() string {
+	if d == nil {
+		return ""
+	}
+	return d.Name
+}
+
+// DeviceType is the type of the virtual device.
+func (d *VirtualDevice) DeviceType() DeviceType {
+	if d == nil {
+		return DeviceTypeUnknown
+	}
+	return d.Type
+}
+
+// PCIDevice is the hardware device associated with the virtual device, if any.
+func (d *VirtualDevice) PCIDevice() *PCIDevice {
+	if d == nil {
+		return nil
+	}
+	return d.BackingDevice
+}
+
+// Topology is a hierarchy of hardware devices grouped under NUMA nodes.
+type Topology struct {
+	// NUMANodes is the set of NUMA nodes mapped by their ID.
+	NUMANodes NodeMap `json:"numa_nodes"`
+
+	// VirtualDevices is a set of virtual devices created in software that may have a
+	// hardware backing device.
+	VirtualDevices []*VirtualDevice
+}
+
 // AllDevices returns a map of all system Devices sorted by their name.
-func (t *Topology) AllDevices() map[string]*PCIDevice {
-	devsByName := make(map[string]*PCIDevice)
+func (t *Topology) AllDevices() map[string]Device {
+	devsByName := make(map[string]Device)
 	if t == nil {
 		return devsByName
 	}
@@ -52,6 +95,11 @@ func (t *Topology) AllDevices() map[string]*PCIDevice {
 			}
 		}
 	}
+
+	for _, v := range t.VirtualDevices {
+		devsByName[v.Name] = v
+	}
+
 	return devsByName
 }
 
