@@ -1,5 +1,5 @@
 //
-// (C) Copyright 2019-2021 Intel Corporation.
+// (C) Copyright 2019-2022 Intel Corporation.
 //
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 //
@@ -102,4 +102,22 @@ message SystemCleanupResp {
 
 	}
 	repeated CleanupResult results = 1; // Results and Status for individual pools that are cleanedup.
+}
+
+// SystemPropSetReq contains a request to set one or more system properties.
+message SystemSetPropReq {
+	string sys = 1;
+	map<string, string> properties = 2;
+}
+
+// SystemPropGetReq contains a request to get one or more properties by key. If
+// no keys are supplied, all properties are returned in the response.
+message SystemGetPropReq {
+	string sys = 1;
+	repeated string keys = 2;
+}
+
+// SystemPropGetResp contains a list of property key/value pairs.
+message SystemGetPropResp {
+	map<string, string> properties = 1;
 }

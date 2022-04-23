@@ -812,3 +812,74 @@ func SystemCleanup(ctx context.Context, rpcClient UnaryInvoker, req *SystemClean
 	resp := new(SystemCleanupResp)
 	return resp, convertMSResponse(ur, resp)
 }
+
+// SystemSetPropReq contains the inputs for the system set-prop request.
+type SystemSetPropReq struct {
+	unaryRequest
+	msRequest
+
+	Properties map[string]string
+}
+
+// SystemSetProp sets system properties.
+func SystemSetProp(ctx context.Context, rpcClient UnaryInvoker, req *SystemSetPropReq) error {
+	if req == nil {
+		return errors.Errorf("nil %T request", req)
+	}
+
+	pbReq := &mgmtpb.SystemSetPropReq{
+		Sys:        req.getSystem(rpcClient),
+		Properties: req.Properties,
+	}
+	req.setRPC(func(ctx context.Context, conn *grpc.ClientConn) (proto.Message, error) {
+		return mgmtpb.NewMgmtSvcClient(conn).SystemSetProp(ctx, pbReq)
+	})
+	rpcClient.Debugf("DAOS system set-prop request: %+v", pbReq)
+
+	ur, err := rpcClient.InvokeUnaryRPC(ctx, req)
+	if err != nil {
+		return err
+	}
+	_, err = ur.getMSResponse()
+
+	return err
+}
+
+type (
+	// SystemGetPropReq contains the inputs for the system get-prop request.
+	SystemGetPropReq struct {
+		unaryRequest
+		msRequest
+
+		Keys []string
+	}
+
+	// SystemGetPropResp contains the request response.
+	SystemGetPropResp struct {
+		Properties map[string]string `json:"properties"`
+	}
+)
+
+// SystemGetProp gets system properties.
+func SystemGetProp(ctx context.Context, rpcClient UnaryInvoker, req *SystemGetPropReq) (*SystemGetPropResp, error) {
+	if req == nil {
+		return nil, errors.Errorf("nil %T request", req)
+	}
+
+	pbReq := &mgmtpb.SystemGetPropReq{
+		Sys:  req.getSystem(rpcClient),
+		Keys: req.Keys,
+	}
+	req.setRPC(func(ctx context.Context, conn *grpc.ClientConn) (proto.Message, error) {
+		return mgmtpb.NewMgmtSvcClient(conn).SystemGetProp(ctx, pbReq)
+	})
+	rpcClient.Debugf("DAOS system get-prop request: %+v", pbReq)
+
+	ur, err := rpcClient.InvokeUnaryRPC(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := new(SystemGetPropResp)
+	return resp, convertMSResponse(ur, resp)
+}

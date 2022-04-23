@@ -1,5 +1,5 @@
 //
-// (C) Copyright 2020-2021 Intel Corporation.
+// (C) Copyright 2020-2022 Intel Corporation.
 //
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 //
@@ -30,6 +30,7 @@ import (
 	"github.com/daos-stack/daos/src/control/common"
 	"github.com/daos-stack/daos/src/control/events"
 	"github.com/daos-stack/daos/src/control/logging"
+	"github.com/daos-stack/daos/src/control/system"
 	. "github.com/daos-stack/daos/src/control/system"
 )
 
@@ -231,6 +232,7 @@ func (tss *testSnapshotSink) Reader() io.ReadCloser {
 func TestSystem_Database_SnapshotRestore(t *testing.T) {
 	maxRanks := 2048
 	maxPools := 1024
+	maxProps := 4096
 
 	log, buf := logging.NewTestLogger(t.Name())
 	defer common.ShowBufferOnFailure(t, buf)
@@ -285,6 +287,19 @@ func TestSystem_Database_SnapshotRestore(t *testing.T) {
 		}
 		(*fsm)(db0).Apply(rl)
 	}
+
+	props := make(map[string]string)
+	for i := 0; i < maxProps; i++ {
+		props[fmt.Sprintf("prop%04d", i)] = fmt.Sprintf("value%04d", i)
+	}
+	data, err := createRaftUpdate(raftOpUpdateSystemProps, props)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rl := &raft.Log{
+		Data: data,
+	}
+	(*fsm)(db0).Apply(rl)
 
 	snap, err := (*fsm)(db0).Snapshot()
 	if err != nil {
@@ -629,6 +644,77 @@ func TestSystem_Database_FaultDomainTree(t *testing.T) {
 
 			if result != nil && result == db.data.Members.FaultDomains {
 				t.Fatal("expected fault domain tree to be a copy")
+			}
+		})
+	}
+}
+
+func raftUpdateSystemProps(t *testing.T, db *Database, props map[string]string) {
+	t.Helper()
+	data, err := createRaftUpdate(raftOpUpdateSystemProps, props)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rl := &raft.Log{
+		Data: data,
+	}
+	(*fsm)(db).Apply(rl)
+}
+
+func TestSystem_Database_SystemProps(t *testing.T) {
+	for name, tc := range map[string]struct {
+		startProps  map[string]string
+		propsUpdate map[string]string
+		searchKeys  []string
+		expProps    map[string]string
+		expErr      error
+	}{
+		"add success": {
+			startProps:  map[string]string{},
+			propsUpdate: map[string]string{"foo": "bar"},
+			expProps:    map[string]string{"foo": "bar"},
+		},
+		"remove success": {
+			startProps:  map[string]string{"bye": "gone"},
+			propsUpdate: map[string]string{"bye": ""},
+			expProps:    map[string]string{},
+		},
+		"update success": {
+			startProps:  map[string]string{"foo": "baz"},
+			propsUpdate: map[string]string{"foo": "bar"},
+			expProps:    map[string]string{"foo": "bar"},
+		},
+		"get bad key": {
+			startProps:  map[string]string{},
+			propsUpdate: map[string]string{"foo": "bar"},
+			expProps:    map[string]string{"foo": "bar"},
+			searchKeys:  []string{"whoops"},
+			expErr:      system.ErrSystemPropNotFound("whoops"),
+		},
+		"get good key": {
+			startProps:  map[string]string{"foo": "bar", "baz": "qux"},
+			propsUpdate: map[string]string{"foo": "quux"},
+			expProps:    map[string]string{"baz": "qux"},
+			searchKeys:  []string{"baz"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			log, buf := logging.NewTestLogger(t.Name())
+			defer common.ShowBufferOnFailure(t, buf)
+
+			db := MockDatabase(t, log)
+
+			db.data.System.Properties = tc.startProps
+			db.SetSystemProps(tc.propsUpdate)
+
+			gotProps, gotErr := db.GetSystemProps(tc.searchKeys)
+			common.CmpErr(t, tc.expErr, gotErr)
+			if tc.expErr != nil {
+				return
+			}
+
+			if diff := cmp.Diff(tc.expProps, gotProps); diff != "" {
+				t.Fatalf("unexpected system properties (-want, +got):\n%s\n", diff)
 			}
 		})
 	}

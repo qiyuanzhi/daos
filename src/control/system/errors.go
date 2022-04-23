@@ -263,3 +263,20 @@ func ErrPoolUUIDNotFound(u uuid.UUID) *ErrPoolNotFound {
 func ErrPoolLabelNotFound(l string) *ErrPoolNotFound {
 	return &ErrPoolNotFound{byLabel: &l}
 }
+
+type errSystemPropNotFound struct {
+	key string
+}
+
+func (err *errSystemPropNotFound) Error() string {
+	return fmt.Sprintf("unable to find system property with key %q", err.key)
+}
+
+func ErrSystemPropNotFound(key string) *errSystemPropNotFound {
+	return &errSystemPropNotFound{key: key}
+}
+
+func IsErrSystemPropNotFound(err error) bool {
+	_, ok := errors.Cause(err).(*errSystemPropNotFound)
+	return ok
+}

@@ -1,5 +1,5 @@
 //
-// (C) Copyright 2019-2021 Intel Corporation.
+// (C) Copyright 2019-2022 Intel Corporation.
 //
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 //
@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -15,6 +16,8 @@ import (
 	"github.com/daos-stack/daos/src/control/cmd/dmg/pretty"
 	"github.com/daos-stack/daos/src/control/lib/control"
 	"github.com/daos-stack/daos/src/control/lib/hostlist"
+	"github.com/daos-stack/daos/src/control/lib/txtfmt"
+	"github.com/daos-stack/daos/src/control/lib/ui"
 	"github.com/daos-stack/daos/src/control/system"
 )
 
@@ -27,6 +30,9 @@ type SystemCmd struct {
 	Erase       systemEraseCmd   `command:"erase" description:"Erase system metadata prior to reformat"`
 	ListPools   PoolListCmd      `command:"list-pools" description:"List all pools in the DAOS system"`
 	Cleanup     systemCleanupCmd `command:"cleanup" description:"Clean up all resources associated with the specified machine"`
+	SetProp     systemSetPropCmd `command:"set-prop" description:"Set system properties"`
+	GetProp     systemGetPropCmd `command:"get-prop" description:"Get system properties"`
+	DelProp     systemDelPropCmd `command:"del-prop" description:"Delete system properties"`
 }
 
 type leaderQueryCmd struct {
@@ -286,4 +292,119 @@ func (cmd *systemCleanupCmd) Execute(_ []string) (errOut error) {
 	cmd.Infof("%s", out.String())
 
 	return resp.Errors()
+}
+
+// systemSetPropCmd represents the command to set system properties.
+type systemSetPropCmd struct {
+	baseCmd
+	cfgCmd
+	ctlInvokerCmd
+	jsonOutputCmd
+
+	Args struct {
+		Props ui.SetPropertiesFlag `positional-arg-name:"system properties to set (key:val[,key:val...])" required:"1"`
+	} `positional-args:"yes"`
+}
+
+// Execute is run when systemSetPropCmd subcommand is activated.
+func (cmd *systemSetPropCmd) Execute(_ []string) error {
+	req := &control.SystemSetPropReq{
+		Properties: cmd.Args.Props.ParsedProps,
+	}
+
+	err := control.SystemSetProp(context.Background(), cmd.ctlInvoker, req)
+	if cmd.jsonOutputEnabled() {
+		return cmd.outputJSON(nil, err)
+	}
+
+	if err != nil {
+		return errors.Wrap(err, "system set-prop failed")
+	}
+	cmd.Info("system set-prop succeeded")
+
+	return nil
+}
+
+// systemGetPropCmd represents the command to get system properties.
+type systemGetPropCmd struct {
+	baseCmd
+	cfgCmd
+	ctlInvokerCmd
+	jsonOutputCmd
+
+	Args struct {
+		Props ui.GetPropertiesFlag `positional-arg-name:"system properties to get (key[,key...])"`
+	} `positional-args:"yes"`
+}
+
+func prettyPrintProps(out io.Writer, props map[string]string) {
+	nameTitle := "Name"
+	valueTitle := "Value"
+	table := []txtfmt.TableRow{}
+	for key, val := range props {
+		row := txtfmt.TableRow{}
+		row[nameTitle] = key
+		row[valueTitle] = val
+		table = append(table, row)
+	}
+
+	tf := txtfmt.NewTableFormatter(nameTitle, valueTitle)
+	tf.InitWriter(out)
+	tf.Format(table)
+}
+
+// Execute is run when systemGetPropCmd subcommand is activated.
+func (cmd *systemGetPropCmd) Execute(_ []string) error {
+	req := &control.SystemGetPropReq{
+		Keys: cmd.Args.Props.ParsedProps.ToSlice(),
+	}
+
+	resp, err := control.SystemGetProp(context.Background(), cmd.ctlInvoker, req)
+	if cmd.jsonOutputEnabled() {
+		return cmd.outputJSON(resp, err)
+	}
+
+	if err != nil {
+		return errors.Wrap(err, "system get-prop failed")
+	}
+
+	var bld strings.Builder
+	prettyPrintProps(&bld, resp.Properties)
+	cmd.Infof("%s", bld.String())
+
+	return nil
+}
+
+// systemDelPropCmd represents the command to delete system properties.
+type systemDelPropCmd struct {
+	baseCmd
+	cfgCmd
+	ctlInvokerCmd
+	jsonOutputCmd
+
+	Args struct {
+		Props ui.GetPropertiesFlag `positional-arg-name:"system properties to delete (key[,key...])" required:"1"`
+	} `positional-args:"yes"`
+}
+
+// Execute is run when systemDelPropCmd subcommand is activated.
+func (cmd *systemDelPropCmd) Execute(_ []string) error {
+	req := &control.SystemSetPropReq{
+		Properties: make(map[string]string),
+	}
+	for _, key := range cmd.Args.Props.ParsedProps.ToSlice() {
+		req.Properties[key] = ""
+	}
+
+	err := control.SystemSetProp(context.Background(), cmd.ctlInvoker, req)
+	if cmd.jsonOutputEnabled() {
+		return cmd.outputJSON(nil, err)
+	}
+
+	if err != nil {
+		return errors.Wrap(err, "system del-prop failed")
+	}
+	cmd.Info("system del-prop succeeded")
+
+	return nil
 }

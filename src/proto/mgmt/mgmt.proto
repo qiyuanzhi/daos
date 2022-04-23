@@ -78,4 +78,8 @@ service MgmtSvc {
 	rpc SystemCleanup(SystemCleanupReq) returns(SystemCleanupResp){}
 	// PoolUpgrade queries a DAOS pool.
 	rpc PoolUpgrade(PoolUpgradeReq) returns (PoolUpgradeResp) {}
+	// Set a system property or properties.
+	rpc SystemSetProp(SystemSetPropReq) returns (DaosResp) {}
+	// Get a system property or properties.
+	rpc SystemGetProp(SystemGetPropReq) returns (SystemGetPropResp) {}
 }
